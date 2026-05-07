@@ -3,4 +3,4 @@
 	url = https://github.com/IHP-GmbH/IHP-Open-PDK
 [submodule "artistic/artistic"]
 	path = artistic/artistic
-	url = git@github.com:pulp-platform/artistic.git
+	url = https://github.com/pulp-platform/artistic.git
