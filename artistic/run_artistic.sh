@@ -72,6 +72,8 @@ prepare_logo() {
         > /dev/null 2>&1"
 
     run_cmd "convert meerkat_work/croc_logo.png \
+        -colorspace Gray \
+        -gamma 2.2 \
         -dither FloydSteinberg \
         -remap pattern:gray50 \
         meerkat_work/croc_logo.mono.png \
