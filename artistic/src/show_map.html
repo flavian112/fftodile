@@ -40,49 +40,76 @@
 
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
     <script>
-      // All the code for the leaflet map will come here
+      const maxZoom = 6;
+      const tileSize = 512;
+
+      // croc_map.json renders 25600 x 20480 px at z=6.
+      // In CRS.Simple coordinates this is divided by 2^maxZoom.
+      const mapWidth = 25600 / Math.pow(2, maxZoom);
+      const mapHeight = 20480 / Math.pow(2, maxZoom);
+      const bounds = [[-mapHeight, 0], [0, mapWidth]];
+
+      const tileOptions = {
+        tileSize: tileSize,
+        minZoom: 0,
+        maxZoom: maxZoom,
+        maxNativeZoom: maxZoom,
+        noWrap: true,
+        bounds: bounds
+      };
+
       const map = L.map('map', {
-        center: [40, -70],
-        zoom: 2,
-        minzoom: 0,
-        maxZoom: 6
+        crs: L.CRS.Simple,
+        minZoom: 0,
+        maxZoom: maxZoom,
+        maxBounds: bounds,
+        maxBoundsViscosity: 1.0
       });
 
       // Define the layers
       const M1Map = L.tileLayer('M1/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'M1'
       });
 
       const M2Map = L.tileLayer('M2/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'M2'
       });
 
       const M3Map = L.tileLayer('M3/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'M3'
       });
 
       const M4Map = L.tileLayer('M4/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'M4'
       });
 
       const M5Map = L.tileLayer('M5/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'M5'
       });
 
       const T1Map = L.tileLayer('T1/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'T1'
       });
 
       const T2Map = L.tileLayer('T2/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'T2'
       });
 
       const RenderMap = L.tileLayer('render/{z}/{x}/{y}.png', {
+        ...tileOptions,
         attribution: 'Render'
       });
 
       // Add the default layer to the map
       RenderMap.addTo(map);
+      map.fitBounds(bounds);
 
       // Store layers in an object for easy access
       const layers = {
