@@ -145,6 +145,7 @@ gen_outline() {
     --luminosity 0.85 \
     --scale 2.0 \
     > renderics/gen_outline.log"
+    run_cmd "python3 scripts/expand_outline_canvas.py --dy-pt -10 renderics/croc_modules.svg"
 }
 
 

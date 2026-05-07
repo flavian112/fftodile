@@ -10,8 +10,8 @@
         "height_um"   : 2048
     },
     "image": {
-        "px_width"          : 25600,
-        "px_height"         : 20480,
+        "px_width"          : 20480,
+        "px_height"         : 16384,
         "overrender_factor" : 1,
         "num_segs_width"    : 5,
         "num_segs_height"   : 4,

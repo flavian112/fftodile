@@ -43,10 +43,10 @@
       const maxZoom = 6;
       const tileSize = 512;
 
-      // croc_map.json renders 25600 x 20480 px at z=6.
+      // croc_map.json renders 20480 x 16384 px at z=6.
       // In CRS.Simple coordinates this is divided by 2^maxZoom.
-      const mapWidth = 25600 / Math.pow(2, maxZoom);
-      const mapHeight = 20480 / Math.pow(2, maxZoom);
+      const mapWidth = 20480 / Math.pow(2, maxZoom);
+      const mapHeight = 16384 / Math.pow(2, maxZoom);
       const bounds = [[-mapHeight, 0], [0, mapWidth]];
 
       const tileOptions = {
