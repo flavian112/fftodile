@@ -18,10 +18,6 @@
 #include "fft.h"
 #include "config.h"
 
-#define FFT_N        16
-
-#define PACK(re, im) ((((uint32_t)(uint16_t)(int16_t)(re)) << 16) | ((uint16_t)(int16_t)(im)))
-
 // Twiddle factors W_k = exp(-j*2*pi*k/16), stored as {cos_k, sin_k}.
 // Values match rtl/user_domain/fft_core/fft_iterative.sv.
 static const int16_t tw16[16] = {
@@ -29,20 +25,20 @@ static const int16_t tw16[16] = {
 };
 
 // Static buffers in SRAM. 2 x 16 x 4 = 128 bytes.
-static volatile uint32_t in_buf[FFT_N];
-static volatile uint32_t out_buf[FFT_N];
-static uint32_t exp_buf[FFT_N];
+static volatile fft_sample_t in_buf[FFT_N];
+static volatile fft_sample_t out_buf[FFT_N];
+static fft_sample_t exp_buf[FFT_N];
 
-static void fft_sw_inplace(uint32_t *buf) {
+static void fft_sw_inplace(fft_sample_t *buf) {
     // Bit-reverse permutation (4-bit index reversal for N=16).
     for (int i = 1, j = 0; i < FFT_N; i++) {
         int bit = FFT_N >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
         if (i < j) {
-            uint32_t t = buf[i];
-            buf[i]     = buf[j];
-            buf[j]     = t;
+            fft_sample_t t = buf[i];
+            buf[i]         = buf[j];
+            buf[j]         = t;
         }
     }
 
@@ -55,24 +51,24 @@ static void fft_sw_inplace(uint32_t *buf) {
                 int16_t c         = tw16[ti];
                 int16_t s         = tw16[ti + 1];
 
-                uint32_t va       = buf[k + j];
-                uint32_t vb       = buf[k + j + half];
-                int16_t ar        = (int16_t)(va >> 16);
-                int16_t ai        = (int16_t)va;
-                int16_t br        = (int16_t)(vb >> 16);
-                int16_t bi        = (int16_t)vb;
+                fft_sample_t va   = buf[k + j];
+                fft_sample_t vb   = buf[k + j + half];
+                int16_t ar        = fft_real(va);
+                int16_t ai        = fft_imag(va);
+                int16_t br        = fft_real(vb);
+                int16_t bi        = fft_imag(vb);
 
                 int32_t wr        = ((int32_t)c * br + (int32_t)s * bi) >> 15;
                 int32_t wi        = ((int32_t)c * bi - (int32_t)s * br) >> 15;
 
-                buf[k + j]        = PACK((int16_t)((ar + wr) >> 1), (int16_t)((ai + wi) >> 1));
-                buf[k + j + half] = PACK((int16_t)((ar - wr) >> 1), (int16_t)((ai - wi) >> 1));
+                buf[k + j]        = fft_pack((int16_t)((ar + wr) >> 1), (int16_t)((ai + wi) >> 1));
+                buf[k + j + half] = fft_pack((int16_t)((ar - wr) >> 1), (int16_t)((ai - wi) >> 1));
             }
         }
     }
 }
 
-static int run_fft_vector(const uint32_t *input, int ret_base) {
+static int run_fft_vector(const fft_sample_t *input, int ret_base) {
     for (int i = 0; i < FFT_N; i++) {
         in_buf[i]  = input[i];
         out_buf[i] = 0xA5A50000u | (uint32_t)i;
@@ -80,10 +76,10 @@ static int run_fft_vector(const uint32_t *input, int ret_base) {
     }
 
     fft_sw_inplace(exp_buf);
-    dsp_run((uint32_t)in_buf, (uint32_t)out_buf);
+    fft_run((const fft_sample_t *)in_buf, (fft_sample_t *)out_buf);
 
-    CHECK_ASSERT(ret_base + 1, dsp_is_done());
-    CHECK_ASSERT(ret_base + 2, !(*reg32(DSP_BASE_ADDR, DSP_STATUS_OFFSET) & 1));
+    CHECK_ASSERT(ret_base + 1, fft_done());
+    CHECK_ASSERT(ret_base + 2, !fft_busy());
 
     for (int k = 0; k < FFT_N; k++) {
         CHECK_ASSERT(ret_base + 10 + k, out_buf[k] == exp_buf[k]);
@@ -96,39 +92,44 @@ int main() {
     uart_init();
 
     // --- Write/readback register tests ---
-    dsp_set_src(0x10000100);
-    CHECK_ASSERT(1, *reg32(DSP_BASE_ADDR, DSP_SRC_ADDR_OFFSET) == 0x10000100);
+    fft_write_reg(FFT_SRC_ADDR_OFFSET, 0x10000100);
+    CHECK_ASSERT(1, fft_read_reg(FFT_SRC_ADDR_OFFSET) == 0x10000100);
 
-    dsp_set_dst(0x10000200);
-    CHECK_ASSERT(2, *reg32(DSP_BASE_ADDR, DSP_DST_ADDR_OFFSET) == 0x10000200);
+    fft_write_reg(FFT_DST_ADDR_OFFSET, 0x10000200);
+    CHECK_ASSERT(2, fft_read_reg(FFT_DST_ADDR_OFFSET) == 0x10000200);
 
-    // DSP should be idle after reset (STATUS = 0)
-    CHECK_ASSERT(3, *reg32(DSP_BASE_ADDR, DSP_STATUS_OFFSET) == 0);
+    // FFT accelerator should be idle after reset (STATUS = 0).
+    CHECK_ASSERT(3, fft_status() == 0);
 
-    static const uint32_t impulse_at_0[FFT_N] = {
-        PACK(0x1000, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    static const fft_sample_t impulse_at_0[FFT_N] = {
+        FFT_SAMPLE(0x1000, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    static const uint32_t impulse_at_3[FFT_N] = {
-        0, 0, 0, PACK(0x1000, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    static const fft_sample_t impulse_at_3[FFT_N] = {
+        0, 0, 0, FFT_SAMPLE(0x1000, 0), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     };
-    static const uint32_t dc_real[FFT_N] = {
-        PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0),
-        PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0),
-        PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0), PACK(0x0400, 0),
+    static const fft_sample_t dc_real[FFT_N] = {
+        FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0),
+        FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0),
+        FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0),
+        FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0), FFT_SAMPLE(0x0400, 0),
     };
-    static const uint32_t alternating_real[FFT_N] = {
-        PACK(0x0800, 0), PACK(-0x0800, 0), PACK(0x0800, 0), PACK(-0x0800, 0), PACK(0x0800, 0), PACK(-0x0800, 0),
-        PACK(0x0800, 0), PACK(-0x0800, 0), PACK(0x0800, 0), PACK(-0x0800, 0), PACK(0x0800, 0), PACK(-0x0800, 0),
-        PACK(0x0800, 0), PACK(-0x0800, 0), PACK(0x0800, 0), PACK(-0x0800, 0),
+    static const fft_sample_t alternating_real[FFT_N] = {
+        FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0), FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0),
+        FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0), FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0),
+        FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0), FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0),
+        FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0), FFT_SAMPLE(0x0800, 0), FFT_SAMPLE(-0x0800, 0),
     };
-    static const uint32_t mixed_complex[FFT_N] = {
-        PACK(1200, -300), PACK(-900, 700),  PACK(300, 1100), PACK(-120, -950), PACK(2047, 0),   PACK(-2048, 63),
-        PACK(512, -512),  PACK(-256, 1536), PACK(0, -1700),  PACK(77, 88),     PACK(-333, 444), PACK(999, -111),
-        PACK(-1500, 120), PACK(640, -321),  PACK(-42, -43),  PACK(1700, 900),
+    static const fft_sample_t mixed_complex[FFT_N] = {
+        FFT_SAMPLE(1200, -300), FFT_SAMPLE(-900, 700), FFT_SAMPLE(300, 1100), FFT_SAMPLE(-120, -950),
+        FFT_SAMPLE(2047, 0),    FFT_SAMPLE(-2048, 63), FFT_SAMPLE(512, -512), FFT_SAMPLE(-256, 1536),
+        FFT_SAMPLE(0, -1700),   FFT_SAMPLE(77, 88),    FFT_SAMPLE(-333, 444), FFT_SAMPLE(999, -111),
+        FFT_SAMPLE(-1500, 120), FFT_SAMPLE(640, -321), FFT_SAMPLE(-42, -43),  FFT_SAMPLE(1700, 900),
     };
-    static const uint32_t small_values[FFT_N] = {
-        PACK(1, 0),  PACK(0, 1),  PACK(-1, 0), PACK(0, -1),  PACK(2, -2),  PACK(-2, 2),  PACK(3, 4),   PACK(-3, -4),
-        PACK(5, -6), PACK(-5, 6), PACK(7, 8),  PACK(-7, -8), PACK(9, -10), PACK(-9, 10), PACK(11, 12), PACK(-11, -12),
+    static const fft_sample_t small_values[FFT_N] = {
+        FFT_SAMPLE(1, 0),   FFT_SAMPLE(0, 1),   FFT_SAMPLE(-1, 0),  FFT_SAMPLE(0, -1),
+        FFT_SAMPLE(2, -2),  FFT_SAMPLE(-2, 2),  FFT_SAMPLE(3, 4),   FFT_SAMPLE(-3, -4),
+        FFT_SAMPLE(5, -6),  FFT_SAMPLE(-5, 6),  FFT_SAMPLE(7, 8),   FFT_SAMPLE(-7, -8),
+        FFT_SAMPLE(9, -10), FFT_SAMPLE(-9, 10), FFT_SAMPLE(11, 12), FFT_SAMPLE(-11, -12),
     };
 
     CHECK_CALL(run_fft_vector(impulse_at_0, 100));
