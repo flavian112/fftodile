@@ -207,11 +207,11 @@ static void summarize_results(const fft_benchmark_result_t samples[FFT_BENCH_RUN
 
 static void print_summary_line(const char *label, const fft_benchmark_summary_t *summary) {
     print_str(label);
-    printf(" vis=0x%x/0x%x/0x%x", summary->software_visible_cycles.min,
-           summary->software_visible_cycles.median, summary->software_visible_cycles.max);
+    printf(" vis=0x%x/0x%x/0x%x", summary->software_visible_cycles.min, summary->software_visible_cycles.median,
+           summary->software_visible_cycles.max);
     if (summary->accelerator_cycles.max > 0u) {
-        printf(" acc=0x%x/0x%x/0x%x ovh=0x%x/0x%x/0x%x",
-               summary->accelerator_cycles.min, summary->accelerator_cycles.median, summary->accelerator_cycles.max,
+        printf(" acc=0x%x/0x%x/0x%x ovh=0x%x/0x%x/0x%x", summary->accelerator_cycles.min,
+               summary->accelerator_cycles.median, summary->accelerator_cycles.max,
                summary->transfer_overhead_cycles.min, summary->transfer_overhead_cycles.median,
                summary->transfer_overhead_cycles.max);
     } else {
@@ -278,16 +278,15 @@ static int run_benchmark_case(const fft_benchmark_case_t *benchmark_case) {
     print_summary_line("  HW-ip ", &hardware_in_place_summary);
     printf("  Speedup: oop=~0x%xx ip=~0x%xx\n",
            hardware_out_of_place_summary.software_visible_cycles.median
-               ? software_summary.software_visible_cycles.median
-                     / hardware_out_of_place_summary.software_visible_cycles.median
+               ? software_summary.software_visible_cycles.median /
+                     hardware_out_of_place_summary.software_visible_cycles.median
                : 0u,
            hardware_in_place_summary.software_visible_cycles.median
-               ? software_summary.software_visible_cycles.median
-                     / hardware_in_place_summary.software_visible_cycles.median
+               ? software_summary.software_visible_cycles.median /
+                     hardware_in_place_summary.software_visible_cycles.median
                : 0u);
     print_csv_line(benchmark_case->csv_name, "sw", benchmark_case->seed, &software_summary);
-    print_csv_line(benchmark_case->csv_name, "hop", benchmark_case->seed,
-                   &hardware_out_of_place_summary);
+    print_csv_line(benchmark_case->csv_name, "hop", benchmark_case->seed, &hardware_out_of_place_summary);
     print_csv_line(benchmark_case->csv_name, "hip", benchmark_case->seed, &hardware_in_place_summary);
 
     return 0;
@@ -295,9 +294,15 @@ static int run_benchmark_case(const fft_benchmark_case_t *benchmark_case) {
 
 int main(void) {
     static const fft_benchmark_case_t benchmark_cases[] = {
-        {.name = "impulse", .csv_name = "imp", .seed = 0u, .prepare_input = prepare_impulse_input},
-        {.name = "random_seed_13579bdf", .csv_name = "rnd1", .seed = 0x13579BDFu, .prepare_input = prepare_seeded_random_input},
-        {.name = "random_seed_2468ace1", .csv_name = "rnd2", .seed = 0x2468ACE1u, .prepare_input = prepare_seeded_random_input},
+        {.name = "impulse",                       .csv_name = "imp", .seed = 0u, .prepare_input = prepare_impulse_input},
+        {.name          = "random_seed_13579bdf",
+         .csv_name      = "rnd1",
+         .seed          = 0x13579BDFu,
+         .prepare_input = prepare_seeded_random_input                                                                  },
+        {.name          = "random_seed_2468ace1",
+         .csv_name      = "rnd2",
+         .seed          = 0x2468ACE1u,
+         .prepare_input = prepare_seeded_random_input                                                                  },
     };
 
     uart_init();
