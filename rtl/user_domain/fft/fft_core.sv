@@ -203,7 +203,8 @@ module fft_core #(
   generate
     if (ScalingMode == ScaleEachStage) begin : gen_scaled_butterfly
       if (UseRounding) begin : gen_rounded_butterfly
-        // Round-to-nearest-even: add 1 before right-shift by 1
+        // Round-half-up for a 1-bit shift: add 1 before arithmetic shift.
+        // This keeps logic small and deterministic for hardware/reference parity.
         if (UseSaturation) begin : gen_rounded_saturated_butterfly
           assign next_lower_real = saturate((sum_real + 1) >>> 1);
           assign next_lower_imag = saturate((sum_imag + 1) >>> 1);

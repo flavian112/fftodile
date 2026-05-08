@@ -33,7 +33,7 @@
 // Override these at compile time (for example with -DFFT_SYNTH_LENGTH=8)
 // when simulating a non-default FFT build.
 #ifndef FFT_SYNTH_LENGTH
-#define FFT_SYNTH_LENGTH     16
+#define FFT_SYNTH_LENGTH 16
 #endif
 
 #ifndef FFT_SYNTH_LOG2_LENGTH
@@ -45,11 +45,11 @@
 #endif
 
 // Interrupts
-#define IRQ_SOFTWARE        3
-#define IRQ_TIMER           7
-#define IRQ_EXTERNAL        11
-#define IRQ_OBI_TIMER       16
-#define IRQ_UART            17
-#define IRQ_GPIO            18
-#define IRQ_IDMA            19
-#define IRQ_FFT             20
+#define IRQ_SOFTWARE  3
+#define IRQ_TIMER     7
+#define IRQ_EXTERNAL  11
+#define IRQ_OBI_TIMER 16
+#define IRQ_UART      17
+#define IRQ_GPIO      18
+#define IRQ_IDMA      19
+#define IRQ_FFT       20

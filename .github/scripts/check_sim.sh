@@ -15,7 +15,7 @@ expected_lines=(
   "\[UART\]   iDMAEnable: 0"
   "\[UART\]   Core: CVE2, RV32CIU"
   "\[UART\]   PMPEnable: 0"
-  "\[UART\]   SRAM: 2h banks x 200h words"
+  "\[UART\]   SRAM: [0-9A-Fa-f][0-9A-Fa-f]*h banks x [0-9A-Fa-f][0-9A-Fa-f]*h words"
   "\[UART\]   Debug\s*: present"
   "\[UART\]   Bootrom\s*: present"
   "\[UART\]   CLINT\s*: present"

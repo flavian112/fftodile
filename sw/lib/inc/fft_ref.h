@@ -27,6 +27,8 @@
  *
  * Set FFT_REF_USE_INVERSE to compute inverse FFT instead of forward FFT.
  * Default is 0 (forward FFT).
+ *
+ * Supported FFT lengths in this reference model are 8 and 16.
  */
 
 #ifndef FFT_REF_USE_ROUNDING
@@ -100,7 +102,7 @@ static inline fft_sample_t fft_ref_butterfly_product(fft_sample_t sample, fft_re
     // For forward FFT: (c - j*s) * (real + j*imag)
     // For inverse FFT: (c + j*s) * (real + j*imag) = conjugate of forward
     // Stored twiddles are {cos, sin}, so negate sin for inverse.
-    int16_t twiddle_sin = FFT_REF_USE_INVERSE ? -twiddle.imag : twiddle.imag;
+    int16_t twiddle_sin  = FFT_REF_USE_INVERSE ? -twiddle.imag : twiddle.imag;
 
     int32_t product_real = ((int32_t)twiddle.real * sample_real + (int32_t)twiddle_sin * sample_imag) >> 15;
     int32_t product_imag = ((int32_t)twiddle.real * sample_imag - (int32_t)twiddle_sin * sample_real) >> 15;
@@ -122,7 +124,7 @@ static inline int16_t fft_ref_saturate(int32_t value) {
 static inline int16_t fft_ref_scale_value(int32_t value, uint32_t scaling_mode) {
     if (scaling_mode == FFT_SCALE_EACH_STAGE) {
         if (FFT_REF_USE_ROUNDING) {
-            // Round-half-up: add 1 before right-shift by 1
+            // Round-half-up: add 1 before arithmetic right-shift by 1.
             value = (value + 1) >> 1;
         } else {
             // Truncation: arithmetic right shift discards LSB

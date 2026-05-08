@@ -20,8 +20,9 @@ Current user-domain contents:
 - `sw/test/test_fft.c`: deterministic correctness tests
 - `sw/benchmark_fft.c`: software-vs-hardware benchmark
 
-The current FFT accelerator is a compile-time configured 16-point fixed-point
-FFT. Samples are packed as:
+The FFT accelerator is a compile-time configured fixed-point radix-2 engine.
+Supported RTL lengths are 2/4/8/16 points, with 8-point and 16-point builds
+currently verified in simulation. Samples are packed as:
 
 ```text
 sample[31:16] = signed 16-bit real component
@@ -29,9 +30,9 @@ sample[15:0]  = signed 16-bit imaginary component
 ```
 
 The default hardware build applies one arithmetic right shift per butterfly
-stage, so the 16-point FFT output is scaled by `1/16` relative to an unscaled
-DFT. The FFT scaling behavior is a compile-time RTL parameter; the selected mode
-is reported through the `CONFIG` register.
+stage (`FftScalingMode=1`). For the default 16-point build this gives an
+overall scale of `1/16` relative to an unscaled DFT. The selected build options
+are reported through the `CONFIG` register.
 
 The top-level RTL parameters for the accelerator are:
 
@@ -40,6 +41,9 @@ The top-level RTL parameters for the accelerator are:
 | `FftLength` | `16` | complex samples per run |
 | `FftDataWidth` | `16` | signed bits per real/imaginary component |
 | `FftScalingMode` | `1` | `0`: no butterfly scaling, `1`: scale each stage |
+| `FftInverse` | `0` | `0`: forward FFT, `1`: inverse FFT |
+| `FftUseRounding` | `0` | `0`: truncate scaled results, `1`: round-half-up before shift |
+| `FftUseSaturation` | `0` | `0`: wrap on overflow, `1`: saturate to signed min/max |
 
 ## Architecture
 
@@ -169,6 +173,18 @@ scaling:
 ```sh
 make clean-sim
 make test-fft VERILATOR_FLAGS=-GFftScalingMode=0
+
+# Example: inverse FFT + rounding + saturation
+make clean-sim
+make test-fft \
+  VERILATOR_FLAGS='-GFftInverse=1 -GFftUseRounding=1 -GFftUseSaturation=1' \
+  RISCV_CCFLAGS+=' -DFFT_REF_USE_INVERSE=1 -DFFT_REF_USE_ROUNDING=1 -DFFT_REF_USE_SATURATION=1'
+
+# Example: 8-point FFT build with matching software expectations
+make clean-sim
+make test-fft \
+  VERILATOR_FLAGS='-GFftLength=8' \
+  RISCV_CCFLAGS+=' -DFFT_SYNTH_LENGTH=8 -DFFT_SYNTH_LOG2_LENGTH=3'
 ```
 
 Run the FFT benchmark simulation:
@@ -244,6 +260,14 @@ fft_run(input, output);
 
 For test and benchmark reference calculations, `sw/lib/inc/fft_ref.h` contains a
 small fixed-point software model that mirrors the hardware arithmetic.
+
+The benchmark (`sw/benchmark_fft.c`) reports:
+
+- software-visible cycle count for software FFT
+- software-visible cycle count for hardware FFT
+- accelerator-reported cycle count (`CYCLES` register)
+- estimated transfer/host overhead (`software-visible - accelerator`)
+- out-of-place and in-place hardware runs
 
 ## ASIC Flow
 

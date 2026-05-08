@@ -8,21 +8,24 @@
 
 // Test: FFT accelerator register interface and fixed-point output correctness.
 //
-// To test rounding behavior, compile with:
-//   CFLAGS="-DFFT_REF_USE_ROUNDING=1" make test-fft
-// This requires the hardware to also be synthesized with UseRounding parameter
-// set to 1 on the fft_core instantiation (e.g., in top-level module parameters).
+// To test rounding behavior, run with:
+//   make test-fft \
+//     RISCV_CCFLAGS+=' -DFFT_REF_USE_ROUNDING=1' \
+//     VERILATOR_FLAGS='-GFftUseRounding=1'
+// This requires hardware and reference-model options to match.
 // Default behavior (UseRounding=0) uses truncation.
 //
-// To test saturation behavior, compile with:
-//   CFLAGS="-DFFT_REF_USE_SATURATION=1" make test-fft
-// This requires the hardware to also be synthesized with UseSaturation parameter
-// set to 1 on the fft_core instantiation. Default behavior (UseSaturation=0) wraps.
+// To test saturation behavior, run with:
+//   make test-fft \
+//     RISCV_CCFLAGS+=' -DFFT_REF_USE_SATURATION=1' \
+//     VERILATOR_FLAGS='-GFftUseSaturation=1'
+// Default behavior (UseSaturation=0) wraps.
 //
-// To test inverse FFT behavior, compile with:
-//   CFLAGS="-DFFT_REF_USE_INVERSE=1" make test-fft
-// This requires the hardware to also be synthesized with Inverse parameter set to 1
-// on the fft_obi instantiation. Default behavior (Inverse=0) computes forward FFT.
+// To test inverse FFT behavior, run with:
+//   make test-fft \
+//     RISCV_CCFLAGS+=' -DFFT_REF_USE_INVERSE=1' \
+//     VERILATOR_FLAGS='-GFftInverse=1'
+// Default behavior (Inverse=0) computes forward FFT.
 
 #include "uart.h"
 #include "util.h"
@@ -65,8 +68,8 @@ static int test_register_readback(void) {
     CHECK_ASSERT(2, fft_config_length() == FFT_N);
     CHECK_ASSERT(3, fft_config_log2_length() == FFT_SYNTH_LOG2_LENGTH);
     CHECK_ASSERT(4, fft_config_data_width() == FFT_SYNTH_DATA_WIDTH);
-    // Verify CONFIG register reports inverse mode (may be 0 or 1 depending on build)
-    CHECK_ASSERT(5, (is_inverse == 0) || (is_inverse == 1));
+    // Keep software reference mode aligned with synthesized hardware direction.
+    CHECK_ASSERT(5, is_inverse == (FFT_REF_USE_INVERSE ? 1u : 0u));
     CHECK_ASSERT(6, (scale_mode == FFT_SCALE_NONE) || (scale_mode == FFT_SCALE_EACH_STAGE));
     CHECK_ASSERT(7, fft_config_scale_stages() == (scale_mode == FFT_SCALE_EACH_STAGE));
     CHECK_ASSERT(8, fft_config_bit_reverse());
@@ -154,10 +157,10 @@ static int test_conjugate_symmetric_input(void) {
 
     input_buffer[0] = FFT_SAMPLE(512, 0);
     for (int index = 1; index < half_n; index++) {
-        int16_t real = (int16_t)(700 - 113 * index);
-        int16_t imag = (int16_t)((index & 1) ? (-120 - 80 * index) : (140 + 70 * index));
+        int16_t real                = (int16_t)(700 - 113 * index);
+        int16_t imag                = (int16_t)((index & 1) ? (-120 - 80 * index) : (140 + 70 * index));
 
-        input_buffer[index] = fft_pack(real, imag);
+        input_buffer[index]         = fft_pack(real, imag);
         input_buffer[FFT_N - index] = fft_pack(real, (int16_t)-imag);
     }
 
@@ -262,7 +265,7 @@ static int test_forward_inverse_relationship(void) {
     if (FFT_REF_USE_INVERSE) {
         // For inverse FFT: input all ones should produce scaled impulse at bin 0
         for (int index = 0; index < FFT_N; index++) {
-            input_buffer[index] = FFT_SAMPLE(4096, 0);  // DC input
+            input_buffer[index] = FFT_SAMPLE(4096, 0); // DC input
         }
 
         clear_output_buffer();
@@ -278,7 +281,7 @@ static int test_forward_inverse_relationship(void) {
     } else {
         // For forward FFT: impulse at 0 should produce roughly constant spectrum
         clear_input_buffer();
-        input_buffer[0] = FFT_SAMPLE(4096, 0);  // Impulse at bin 0
+        input_buffer[0] = FFT_SAMPLE(4096, 0); // Impulse at bin 0
 
         clear_output_buffer();
         prepare_expected_buffer();
