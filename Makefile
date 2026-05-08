@@ -31,7 +31,7 @@ KLAYOUT    := cd klayout && ./run_finishing.sh
 
 .PHONY: help init
 .PHONY: sw
-.PHONY: sim sim-build sim-run test-fft bench-fft
+.PHONY: sim sim-build sim-run test-fft bench-fft test-sram
 .PHONY: flist flist-yosys flist-verilator flist-vsim
 .PHONY: synth
 .PHONY: floorplan placement cts routing finishing backend
@@ -59,6 +59,7 @@ help:
 		'  sw                Build all software images in sw/' \
 		'  sim               Build software, build Verilator, and run BIN' \
 		'  test-fft          Simulate the FFT correctness test' \
+		'  test-sram         Simulate the SRAM address/data test' \
 		'  bench-fft         Simulate the FFT benchmark' \
 		'  sim-build         Build the Verilator simulator only' \
 		'  sim-run           Run BIN on an already-built Verilator simulator' \
@@ -123,6 +124,9 @@ test-fft: sim
 
 bench-fft: BIN := sw/bin/benchmark_fft.hex
 bench-fft: sim
+
+test-sram: BIN := sw/bin/test/test_sram.hex
+test-sram: sim
 
 # -----------------------------------------------------------------------------
 # File lists

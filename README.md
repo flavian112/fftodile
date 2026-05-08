@@ -306,10 +306,10 @@ Main SoC configuration lives in `rtl/croc_pkg.sv`.
 Important SRAM parameters:
 
 - `NumSramBanks = 2`
-- `SramBankNumWords = 512`
+- `SramBankNumWords = 1024`
 
 The physical IHP SRAM mapping is implemented through `ihp13/tc_sram_impl.sv`.
-The current `512 x 32` logical SRAM bank maps to an IHP SRAM macro through that
+The current `1024 x 32` logical SRAM bank maps to an IHP SRAM macro through that
 technology wrapper.
 
 User-domain address rules live in `rtl/user_pkg.sv`. The FFT accelerator is

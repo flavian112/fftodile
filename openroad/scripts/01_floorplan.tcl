@@ -93,9 +93,9 @@ source src/padring.tcl
 ##########################################################################
 # RAM sizes
 ##########################################################################
-set RamMaster256x64   [[ord::get_db] findMaster "RM_IHPSG13_1P_256x64_c2_bm_bist"]
-set RamSize256x64_W   [ord::dbu_to_microns [$RamMaster256x64 getWidth]]
-set RamSize256x64_H   [ord::dbu_to_microns [$RamMaster256x64 getHeight]]
+set RamMaster512x64   [[ord::get_db] findMaster "RM_IHPSG13_1P_512x64_c2_bm_bist"]
+set RamSize512x64_W   [ord::dbu_to_microns [$RamMaster512x64 getWidth]]
+set RamSize512x64_H   [ord::dbu_to_microns [$RamMaster512x64 getHeight]]
 
 
 ##########################################################################
@@ -141,8 +141,8 @@ set floor_midpointY   [expr $floor_bottomY + ($floor_topY - $floor_bottomY)/2]
 utl::report "Place Macros"
 
 # Bank0
-set X [expr $floor_midpointX - $RamSize256x64_W/2]
-set Y [expr $floor_topY - $RamSize256x64_H]
+set X [expr $floor_midpointX - $RamSize512x64_W/2]
+set Y [expr $floor_topY - $RamSize512x64_H]
 placeInstance $bank0_sram0 $X $Y R0
 
 # Bank1
@@ -169,4 +169,3 @@ report_image "01_${proj_name}.floorplan" true
 utl::report "###############################################################################"
 utl::report "# Stage 01 complete: Checkpoint saved to ${save_dir}/01_${proj_name}.floorplan.zip"
 utl::report "###############################################################################"
-
