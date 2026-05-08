@@ -27,6 +27,7 @@ module fft_obi
   parameter int unsigned FftLength   = 16,
   parameter int unsigned DataWidth   = 16,
   parameter int unsigned ScalingMode = 1,
+  parameter bit          Inverse     = 1'b0,
   parameter bit          UseRounding = 1'b0,
   parameter bit          UseSaturation = 1'b0
 ) (
@@ -111,7 +112,7 @@ module fft_obi
     4'h0,
     1'b1,                  // input is bit-reversed before the iterative stages
     ScalingCfg,            // compile-time scaling mode
-    1'b0,                  // forward FFT
+    Inverse,               // 1 = inverse FFT, 0 = forward FFT
     DataWidthCfg,
     4'h0,
     FftLog2Cfg,
@@ -203,7 +204,7 @@ module fft_obi
     .FftLength       ( FftLength ),
     .DataWidth       ( DataWidth ),
     .TwiddleWidth    ( 16        ),
-    .Inverse         ( 1'b0      ),
+    .Inverse         ( Inverse   ),
     .ScalingMode     ( ScalingMode ),
     .BitReverseInput ( 1'b1      ),
     .UseRounding     ( UseRounding ),

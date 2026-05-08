@@ -24,6 +24,9 @@
  *
  * Set FFT_REF_USE_SATURATION to enable saturating arithmetic.
  * Default is 0 (wraparound).
+ *
+ * Set FFT_REF_USE_INVERSE to compute inverse FFT instead of forward FFT.
+ * Default is 0 (forward FFT).
  */
 
 #ifndef FFT_REF_USE_ROUNDING
@@ -32,6 +35,10 @@
 
 #ifndef FFT_REF_USE_SATURATION
 #define FFT_REF_USE_SATURATION 0
+#endif
+
+#ifndef FFT_REF_USE_INVERSE
+#define FFT_REF_USE_INVERSE 0
 #endif
 
 typedef struct {
@@ -79,9 +86,13 @@ static inline fft_sample_t fft_ref_butterfly_product(fft_sample_t sample, fft_re
     int16_t sample_real  = fft_real(sample);
     int16_t sample_imag  = fft_imag(sample);
 
-    // (c - j*s) * (real + j*imag), with c/s stored in Q1.15.
-    int32_t product_real = ((int32_t)twiddle.real * sample_real + (int32_t)twiddle.imag * sample_imag) >> 15;
-    int32_t product_imag = ((int32_t)twiddle.real * sample_imag - (int32_t)twiddle.imag * sample_real) >> 15;
+    // For forward FFT: (c - j*s) * (real + j*imag)
+    // For inverse FFT: (c + j*s) * (real + j*imag) = conjugate of forward
+    // Stored twiddles are {cos, sin}, so negate sin for inverse.
+    int16_t twiddle_sin = FFT_REF_USE_INVERSE ? -twiddle.imag : twiddle.imag;
+
+    int32_t product_real = ((int32_t)twiddle.real * sample_real + (int32_t)twiddle_sin * sample_imag) >> 15;
+    int32_t product_imag = ((int32_t)twiddle.real * sample_imag - (int32_t)twiddle_sin * sample_real) >> 15;
 
     return fft_pack((int16_t)product_real, (int16_t)product_imag);
 }
