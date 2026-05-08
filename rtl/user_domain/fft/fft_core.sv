@@ -18,7 +18,8 @@ module fft_core #(
   parameter int unsigned TwiddleWidth    = 16,
   parameter bit          Inverse         = 1'b0,
   parameter int unsigned ScalingMode     = 1,
-  parameter bit          BitReverseInput = 1'b1
+  parameter bit          BitReverseInput = 1'b1,
+  parameter bit          UseRounding     = 1'b0
 ) (
   input  logic                       clk_i,
   input  logic                       rst_ni,
@@ -185,10 +186,19 @@ module fft_core #(
 
   generate
     if (ScalingMode == ScaleEachStage) begin : gen_scaled_butterfly
-      assign next_lower_real = narrow(sum_real >>> 1);
-      assign next_lower_imag = narrow(sum_imag >>> 1);
-      assign next_upper_real = narrow(diff_real >>> 1);
-      assign next_upper_imag = narrow(diff_imag >>> 1);
+      if (UseRounding) begin : gen_rounded_butterfly
+        // Round-to-nearest-even: add 1 before right-shift by 1
+        assign next_lower_real = narrow((sum_real + 1) >>> 1);
+        assign next_lower_imag = narrow((sum_imag + 1) >>> 1);
+        assign next_upper_real = narrow((diff_real + 1) >>> 1);
+        assign next_upper_imag = narrow((diff_imag + 1) >>> 1);
+      end else begin : gen_truncated_butterfly
+        // Truncation: arithmetic right shift discards LSB
+        assign next_lower_real = narrow(sum_real >>> 1);
+        assign next_lower_imag = narrow(sum_imag >>> 1);
+        assign next_upper_real = narrow(diff_real >>> 1);
+        assign next_upper_imag = narrow(diff_imag >>> 1);
+      end
     end else if (ScalingMode == ScaleNone) begin : gen_unscaled_butterfly
       assign next_lower_real = narrow(sum_real);
       assign next_lower_imag = narrow(sum_imag);

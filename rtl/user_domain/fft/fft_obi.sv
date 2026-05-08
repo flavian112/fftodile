@@ -26,7 +26,8 @@ module fft_obi
 #(
   parameter int unsigned FftLength   = 16,
   parameter int unsigned DataWidth   = 16,
-  parameter int unsigned ScalingMode = 1
+  parameter int unsigned ScalingMode = 1,
+  parameter bit          UseRounding = 1'b0
 ) (
   input  logic clk_i,
   input  logic rst_ni,
@@ -203,7 +204,8 @@ module fft_obi
     .TwiddleWidth    ( 16        ),
     .Inverse         ( 1'b0      ),
     .ScalingMode     ( ScalingMode ),
-    .BitReverseInput ( 1'b1      )
+    .BitReverseInput ( 1'b1      ),
+    .UseRounding     ( UseRounding )
   ) i_fft_core (
     .clk_i,
     .rst_ni,

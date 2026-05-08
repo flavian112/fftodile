@@ -7,6 +7,12 @@
 // - Thanu Kanagalingam
 
 // Test: FFT accelerator register interface and fixed-point output correctness.
+//
+// To test rounding behavior, compile with:
+//   CFLAGS="-DFFT_REF_USE_ROUNDING=1" make test-fft
+// This requires the hardware to also be synthesized with UseRounding parameter
+// set to 1 on the fft_core instantiation (e.g., in top-level module parameters).
+// Default behavior (UseRounding=0) uses truncation.
 
 #include "uart.h"
 #include "util.h"

@@ -18,7 +18,14 @@
  * This model intentionally mirrors the accelerator's fixed-point arithmetic:
  * 16-point radix-2 DIT FFT, Q1.15 twiddles, and the synthesized scaling mode
  * reported by the CONFIG register. It is not a generic FFT library.
+ *
+ * Set FFT_REF_USE_ROUNDING to enable rounded shifts (round-half-up).
+ * Default is 0 (truncation).
  */
+
+#ifndef FFT_REF_USE_ROUNDING
+#define FFT_REF_USE_ROUNDING 0
+#endif
 
 typedef struct {
     int16_t real;
@@ -74,7 +81,13 @@ static inline fft_sample_t fft_ref_butterfly_product(fft_sample_t sample, fft_re
 
 static inline int16_t fft_ref_scale_value(int32_t value, uint32_t scaling_mode) {
     if (scaling_mode == FFT_SCALE_EACH_STAGE) {
-        value >>= 1;
+        if (FFT_REF_USE_ROUNDING) {
+            // Round-half-up: add 1 before right-shift by 1
+            value = (value + 1) >> 1;
+        } else {
+            // Truncation: arithmetic right shift discards LSB
+            value >>= 1;
+        }
     }
 
     return (int16_t)value;
