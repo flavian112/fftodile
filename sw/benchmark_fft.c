@@ -16,6 +16,7 @@
 
 typedef struct {
     uint32_t cycles;
+    uint32_t accelerator_cycles;
     fft_sample_t bin0;
     fft_sample_t bin8;
 } fft_benchmark_result_t;
@@ -43,9 +44,10 @@ static fft_benchmark_result_t benchmark_software_fft(void) {
     fft_ref_run(software_buffer);
 
     fft_benchmark_result_t result = {
-        .cycles = (uint32_t)get_mcycle() - start_cycles,
-        .bin0   = software_buffer[0],
-        .bin8   = software_buffer[8],
+        .cycles             = (uint32_t)get_mcycle() - start_cycles,
+        .accelerator_cycles = 0,
+        .bin0               = software_buffer[0],
+        .bin8               = software_buffer[8],
     };
     return result;
 }
@@ -55,9 +57,10 @@ static fft_benchmark_result_t benchmark_hardware_fft(void) {
     fft_run((const fft_sample_t *)input_buffer, (fft_sample_t *)output_buffer);
 
     fft_benchmark_result_t result = {
-        .cycles = (uint32_t)get_mcycle() - start_cycles,
-        .bin0   = output_buffer[0],
-        .bin8   = output_buffer[8],
+        .cycles             = (uint32_t)get_mcycle() - start_cycles,
+        .accelerator_cycles = fft_cycles(),
+        .bin0               = output_buffer[0],
+        .bin8               = output_buffer[8],
     };
     return result;
 }
@@ -68,6 +71,7 @@ static void print_software_result(fft_benchmark_result_t result) {
 
 static void print_hardware_result(fft_benchmark_result_t result) {
     printf("HW: 0x%x cycles  bin[0]=0x%x  bin[8]=0x%x\n", result.cycles, result.bin0, result.bin8);
+    printf("HW accelerator: 0x%x cycles\n", result.accelerator_cycles);
 }
 
 int main(void) {
@@ -77,7 +81,7 @@ int main(void) {
     fft_benchmark_result_t software = benchmark_software_fft();
     fft_benchmark_result_t hardware = benchmark_hardware_fft();
 
-    printf("=== FFT Benchmark (N=0x%x, 20 MHz) ===\n", FFT_N);
+    printf("=== FFT Benchmark (N=0x%x, config=0x%x, 20 MHz) ===\n", FFT_N, fft_config());
     print_software_result(software);
     print_hardware_result(hardware);
     printf("Speedup: ~0x%x x\n", hardware.cycles ? software.cycles / hardware.cycles : 0);

@@ -6,7 +6,10 @@
 // - Philippe Sauter <phsauter@iis.ee.ethz.ch>
 
 module croc_soc import croc_pkg::*; #(
-  parameter int unsigned GpioCount = 16
+  parameter int unsigned GpioCount = 16,
+  parameter int unsigned FftLength = 16,
+  parameter int unsigned FftDataWidth = 16,
+  parameter int unsigned FftScalingMode = 1
 ) (
   input  logic clk_i,
   input  logic rst_ni,
@@ -86,7 +89,10 @@ croc_domain #(
 
 user_domain #(
   .GpioCount       ( GpioCount       ),
-  .NumExternalIrqs ( NumExternalIrqs )
+  .NumExternalIrqs ( NumExternalIrqs ),
+  .FftLength       ( FftLength       ),
+  .FftDataWidth    ( FftDataWidth    ),
+  .FftScalingMode  ( FftScalingMode  )
 ) i_user (
   .clk_i,
   .rst_ni ( synced_rst_n ),

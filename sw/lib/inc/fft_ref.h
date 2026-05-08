@@ -16,8 +16,8 @@
  * @brief Small fixed-point FFT reference model for tests and benchmarks.
  *
  * This model intentionally mirrors the accelerator's fixed-point arithmetic:
- * 16-point radix-2 DIT FFT, Q1.15 twiddles, and one arithmetic right shift per
- * butterfly stage. It is not a generic FFT library.
+ * 16-point radix-2 DIT FFT, Q1.15 twiddles, and the synthesized scaling mode
+ * reported by the CONFIG register. It is not a generic FFT library.
  */
 
 typedef struct {
@@ -72,7 +72,15 @@ static inline fft_sample_t fft_ref_butterfly_product(fft_sample_t sample, fft_re
     return fft_pack((int16_t)product_real, (int16_t)product_imag);
 }
 
-static inline void fft_ref_apply_stage(fft_sample_t samples[FFT_N], int half_span) {
+static inline int16_t fft_ref_scale_value(int32_t value, uint32_t scaling_mode) {
+    if (scaling_mode == FFT_SCALE_EACH_STAGE) {
+        value >>= 1;
+    }
+
+    return (int16_t)value;
+}
+
+static inline void fft_ref_apply_stage(fft_sample_t samples[FFT_N], int half_span, uint32_t scaling_mode) {
     int span           = half_span << 1;
     int twiddle_stride = FFT_N / span;
 
@@ -90,18 +98,20 @@ static inline void fft_ref_apply_stage(fft_sample_t samples[FFT_N], int half_spa
             int16_t upper_real = fft_real(upper);
             int16_t upper_imag = fft_imag(upper);
 
-            samples[lower_index] =
-                fft_pack((int16_t)((lower_real + upper_real) >> 1), (int16_t)((lower_imag + upper_imag) >> 1));
-            samples[upper_index] =
-                fft_pack((int16_t)((lower_real - upper_real) >> 1), (int16_t)((lower_imag - upper_imag) >> 1));
+            samples[lower_index] = fft_pack(fft_ref_scale_value(lower_real + upper_real, scaling_mode),
+                                            fft_ref_scale_value(lower_imag + upper_imag, scaling_mode));
+            samples[upper_index] = fft_pack(fft_ref_scale_value(lower_real - upper_real, scaling_mode),
+                                            fft_ref_scale_value(lower_imag - upper_imag, scaling_mode));
         }
     }
 }
 
 static inline void fft_ref_run(fft_sample_t samples[FFT_N]) {
+    uint32_t scaling_mode = fft_config_scale_mode();
+
     fft_ref_bit_reverse(samples);
 
     for (int half_span = 1; half_span < FFT_N; half_span <<= 1) {
-        fft_ref_apply_stage(samples, half_span);
+        fft_ref_apply_stage(samples, half_span, scaling_mode);
     }
 }

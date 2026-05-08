@@ -9,7 +9,10 @@
 `define TRACE_WAVE
 
 module tb_croc_soc #(
-  parameter int unsigned GpioCount = 32
+  parameter int unsigned GpioCount = 32,
+  parameter int unsigned FftLength = 16,
+  parameter int unsigned FftDataWidth = 16,
+  parameter int unsigned FftScalingMode = 1
 );
 
   import tb_croc_pkg::*;
@@ -92,7 +95,10 @@ module tb_croc_soc #(
   \croc_soc$croc_chip.i_croc_soc i_croc_soc (
   `else
   croc_soc #(
-    .GpioCount ( GpioCount )
+    .GpioCount      ( GpioCount      ),
+    .FftLength      ( FftLength      ),
+    .FftDataWidth   ( FftDataWidth   ),
+    .FftScalingMode ( FftScalingMode )
   ) i_croc_soc (
   `endif
     .clk_i         ( sys_clk     ),

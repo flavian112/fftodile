@@ -36,6 +36,9 @@ Options:
     --build             Build croc_soc Verilator binary
     --run BINARY        Run binary in Verilator
 
+Environment:
+    VERILATOR_FLAGS     Extra arguments passed to verilator during --build
+
 Example:
     # Build and run RTL simulation with given binary
     ./run_verilator.sh --build --run ../sw/bin/helloworld.hex
@@ -57,6 +60,7 @@ run_cmd() {
 build_verilator() {
     run_cmd "echo [INFO][Verilator] Build Verilator"
     run_cmd "verilator \
+        ${VERILATOR_FLAGS:-} \
         -Wno-fatal \
         -Wno-style \
         -Wno-BLKANDNBLK \

@@ -7,7 +7,10 @@
 
 module user_domain import user_pkg::*; import croc_pkg::*; #(
   parameter int unsigned GpioCount = 16,
-  parameter int unsigned NumExternalIrqs = 4
+  parameter int unsigned NumExternalIrqs = 4,
+  parameter int unsigned FftLength = 16,
+  parameter int unsigned FftDataWidth = 16,
+  parameter int unsigned FftScalingMode = 1
 ) (
   input  logic      clk_i,
   input  logic      ref_clk_i,
@@ -92,7 +95,11 @@ module user_domain import user_pkg::*; import croc_pkg::*; #(
   // User subordinates
   // ---------------------------------------------------------------------------
 
-  fft_obi i_fft_obi (
+  fft_obi #(
+    .FftLength   ( FftLength      ),
+    .DataWidth   ( FftDataWidth   ),
+    .ScalingMode ( FftScalingMode )
+  ) i_fft_obi (
     .clk_i,
     .rst_ni,
     .testmode_i,

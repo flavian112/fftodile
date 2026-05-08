@@ -10,10 +10,12 @@
 //
 // Register map, byte offsets relative to the accelerator base address:
 //   0x00 CTRL      bit 0: START, write-only, self-clearing
-//   0x04 STATUS    bit 0: BUSY, bit 1: DONE
+//   0x04 STATUS    bit 0: BUSY, bit 1: DONE, write 1 to DONE to clear
 //   0x08 SRC_ADDR  source address of FftLength packed complex input samples
 //   0x0C DST_ADDR  destination address for FftLength packed complex output samples
-//   0x10 IRQ_CTRL  bit 0: enable one-cycle completion interrupt
+//   0x10 IRQ_CTRL  bit 0: enable completion interrupt while DONE is set
+//   0x14 CONFIG    read-only build configuration
+//   0x18 CYCLES    read-only cycle count of the previous run
 //
 // Sample format is one 32-bit word per complex sample:
 //   sample[31:16] = signed real component
@@ -22,8 +24,9 @@
 module fft_obi
   import croc_pkg::*;
 #(
-  parameter int unsigned FftLength = 16,
-  parameter int unsigned DataWidth = 16
+  parameter int unsigned FftLength   = 16,
+  parameter int unsigned DataWidth   = 16,
+  parameter int unsigned ScalingMode = 1
 ) (
   input  logic clk_i,
   input  logic rst_ni,
@@ -41,6 +44,11 @@ module fft_obi
   localparam int unsigned SampleWidth = 2 * DataWidth;
   localparam int unsigned CountWidth  = $clog2(FftLength + 1);
   localparam int unsigned OffsetPad   = 32 - CountWidth - 2;
+  localparam int unsigned FftLog2     = $clog2(FftLength);
+  localparam logic [7:0]  FftLengthCfg = 8'(FftLength);
+  localparam logic [3:0]  FftLog2Cfg   = 4'(FftLog2);
+  localparam logic [7:0]  DataWidthCfg = 8'(DataWidth);
+  localparam logic [1:0]  ScalingCfg   = 2'(ScalingMode);
 
   typedef enum logic [2:0] {
     StateIdle,
@@ -54,7 +62,9 @@ module fft_obi
     RegStatus  = 6'h01,
     RegSrcAddr = 6'h02,
     RegDstAddr = 6'h03,
-    RegIrqCtrl = 6'h04
+    RegIrqCtrl = 6'h04,
+    RegConfig  = 6'h05,
+    RegCycles  = 6'h06
   } reg_addr_e;
 
   state_e state_q, state_d;
@@ -68,9 +78,13 @@ module fft_obi
 
   logic [31:0] src_addr_q;
   logic [31:0] dst_addr_q;
+  logic [31:0] cycle_count_q;
+  logic [31:0] last_cycles_q;
   logic        irq_en_q;
   logic        busy_q;
   logic        done_q;
+  logic        transfer_complete;
+  logic        status_done_clear;
 
   logic ctrl_start_write;
   assign ctrl_start_write = obi_sbr_req_i.req
@@ -82,6 +96,25 @@ module fft_obi
   assign start_pulse = ctrl_start_write & (state_q == StateIdle);
   assign fetch_byte_offset = {{OffsetPad{1'b0}}, fetch_req_count_q, 2'b00};
   assign store_byte_offset = {{OffsetPad{1'b0}}, store_req_count_q, 2'b00};
+  assign transfer_complete = (state_q == StateStore)
+                           && (store_rsp_count_q == (FftLength - 1))
+                           && obi_mgr_rsp_i.rvalid;
+  assign status_done_clear = obi_sbr_req_i.req
+                           & obi_sbr_req_i.a.we
+                           & (reg_addr_e'(obi_sbr_req_i.a.addr[7:2]) == RegStatus)
+                           & obi_sbr_req_i.a.wdata[1];
+
+  logic [31:0] config_value;
+  assign config_value = {
+    4'h0,
+    1'b1,                  // input is bit-reversed before the iterative stages
+    ScalingCfg,            // compile-time scaling mode
+    1'b0,                  // forward FFT
+    DataWidthCfg,
+    4'h0,
+    FftLog2Cfg,
+    FftLengthCfg
+  };
 
   // ---------------------------------------------------------------------------
   // OBI subordinate register interface
@@ -122,6 +155,8 @@ module fft_obi
         RegSrcAddr: obi_sbr_rsp_o.r.rdata = src_addr_q;
         RegDstAddr: obi_sbr_rsp_o.r.rdata = dst_addr_q;
         RegIrqCtrl: obi_sbr_rsp_o.r.rdata = {31'h0, irq_en_q};
+        RegConfig:  obi_sbr_rsp_o.r.rdata = config_value;
+        RegCycles:  obi_sbr_rsp_o.r.rdata = last_cycles_q;
         default:    obi_sbr_rsp_o.r.rdata = 32'h0;
       endcase
     end
@@ -167,7 +202,7 @@ module fft_obi
     .DataWidth       ( DataWidth ),
     .TwiddleWidth    ( 16        ),
     .Inverse         ( 1'b0      ),
-    .ScaleEachStage  ( 1'b1      ),
+    .ScalingMode     ( ScalingMode ),
     .BitReverseInput ( 1'b1      )
   ) i_fft_core (
     .clk_i,
@@ -220,6 +255,8 @@ module fft_obi
             store_rsp_count_q <= '0;
             busy_q            <= 1'b1;
             done_q            <= 1'b0;
+          end else if (status_done_clear) begin
+            done_q <= 1'b0;
           end
         end
 
@@ -242,7 +279,7 @@ module fft_obi
             store_rsp_count_q <= store_rsp_count_q + 1'b1;
           end
 
-          if (store_rsp_count_q == (FftLength - 1) && obi_mgr_rsp_i.rvalid) begin
+          if (transfer_complete) begin
             busy_q <= 1'b0;
             done_q <= 1'b1;
           end
@@ -250,6 +287,23 @@ module fft_obi
 
         default: ;
       endcase
+    end
+  end
+
+  // Counts the full accelerator transaction, including source reads, iterative
+  // compute, and destination writes. The value is informational only and does
+  // not feed back into the transfer FSM.
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      cycle_count_q <= '0;
+      last_cycles_q <= '0;
+    end else if (start_pulse) begin
+      cycle_count_q <= '0;
+    end else if (transfer_complete) begin
+      cycle_count_q <= cycle_count_q + 1'b1;
+      last_cycles_q <= cycle_count_q + 1'b1;
+    end else if (busy_q) begin
+      cycle_count_q <= cycle_count_q + 1'b1;
     end
   end
 
@@ -283,13 +337,6 @@ module fft_obi
     endcase
   end
 
-  logic done_q_prev;
-
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) done_q_prev <= 1'b0;
-    else         done_q_prev <= done_q;
-  end
-
-  assign irq_o = irq_en_q & done_q & ~done_q_prev;
+  assign irq_o = irq_en_q & done_q;
 
 endmodule

@@ -5,7 +5,11 @@
 // Authors:
 // - Philippe Sauter <phsauter@iis.ee.ethz.ch>
 
-module croc_chip import croc_pkg::*; #() (
+module croc_chip import croc_pkg::*; #(
+  parameter int unsigned FftLength = 16,
+  parameter int unsigned FftDataWidth = 16,
+  parameter int unsigned FftScalingMode = 1
+) (
   input  wire clk_i,
   input  wire rst_ni,
   input  wire ref_clk_i,
@@ -156,7 +160,10 @@ module croc_chip import croc_pkg::*; #() (
     (* dont_touch = "true" *)sg13g2_IOPadIOVss pad_vssio3();
 
   croc_soc #(
-    .GpioCount( GpioCount )
+    .GpioCount      ( GpioCount      ),
+    .FftLength      ( FftLength      ),
+    .FftDataWidth   ( FftDataWidth   ),
+    .FftScalingMode ( FftScalingMode )
   )
   i_croc_soc (
     .clk_i          ( soc_clk_i      ),

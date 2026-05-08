@@ -9,9 +9,11 @@ SHELL := /bin/bash
 PROJ_NAME  ?= croc
 TOP_DESIGN ?= croc_chip
 BIN        ?= sw/bin/helloworld.hex
+VERILATOR_FLAGS ?=
 
 export PROJ_NAME
 export TOP_DESIGN
+export VERILATOR_FLAGS
 
 RMDIR := rm -rf
 
@@ -51,6 +53,7 @@ help:
 		'  PROJ_NAME   Project/output name        (default: croc)' \
 		'  TOP_DESIGN  Top-level RTL module       (default: croc_chip)' \
 		'  BIN         Hex image for simulation   (default: sw/bin/helloworld.hex)' \
+		'  VERILATOR_FLAGS Extra Verilator args   (default: empty)' \
 		'' \
 		'Setup:' \
 		'  init              Initialize git submodules' \

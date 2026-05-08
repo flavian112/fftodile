@@ -17,7 +17,7 @@ module fft_core #(
   parameter int unsigned DataWidth       = 16,
   parameter int unsigned TwiddleWidth    = 16,
   parameter bit          Inverse         = 1'b0,
-  parameter bit          ScaleEachStage  = 1'b1,
+  parameter int unsigned ScalingMode     = 1,
   parameter bit          BitReverseInput = 1'b1
 ) (
   input  logic                       clk_i,
@@ -38,6 +38,8 @@ module fft_core #(
 );
 
   localparam int unsigned IndexWidth = $clog2(FftLength);
+  localparam int unsigned ScaleNone      = 0;
+  localparam int unsigned ScaleEachStage = 1;
 
   typedef logic signed [DataWidth-1:0]    data_t;
   typedef logic signed [TwiddleWidth-1:0] twiddle_t;
@@ -182,16 +184,21 @@ module fft_core #(
   assign diff_imag = $signed({lower_imag[DataWidth-1], lower_imag}) - $signed(product_imag[DataWidth:0]);
 
   generate
-    if (ScaleEachStage) begin : gen_scaled_butterfly
+    if (ScalingMode == ScaleEachStage) begin : gen_scaled_butterfly
       assign next_lower_real = narrow(sum_real >>> 1);
       assign next_lower_imag = narrow(sum_imag >>> 1);
       assign next_upper_real = narrow(diff_real >>> 1);
       assign next_upper_imag = narrow(diff_imag >>> 1);
-    end else begin : gen_unscaled_butterfly
+    end else if (ScalingMode == ScaleNone) begin : gen_unscaled_butterfly
       assign next_lower_real = narrow(sum_real);
       assign next_lower_imag = narrow(sum_imag);
       assign next_upper_real = narrow(diff_real);
       assign next_upper_imag = narrow(diff_imag);
+    end else begin : gen_invalid_scaling_mode
+      assign next_lower_real = '0;
+      assign next_lower_imag = '0;
+      assign next_upper_real = '0;
+      assign next_upper_imag = '0;
     end
   endgenerate
 
@@ -286,6 +293,8 @@ module fft_core #(
       else $fatal(1, "fft_core currently expects TwiddleWidth=16");
     assert ((FftLength == 2) || (FftLength == 4) || (FftLength == 8) || (FftLength == 16))
       else $fatal(1, "fft_core supports FftLength in {2,4,8,16}");
+    assert ((ScalingMode == ScaleNone) || (ScalingMode == ScaleEachStage))
+      else $fatal(1, "fft_core supports scaling modes 0=none and 1=each-stage");
   end
 `endif
 

@@ -22,9 +22,16 @@
  *   sample[31:16] = signed 16-bit real component
  *   sample[15:0]  = signed 16-bit imaginary component
  *
- * Hardware currently implements a 16-point radix-2 FFT with one arithmetic
- * right shift after each butterfly stage. For FFT_N = 16 this gives an overall
+ * Hardware currently implements a 16-point radix-2 FFT. The default build uses
+ * one arithmetic right shift after each butterfly stage, giving an overall
  * scale factor of 1/16 relative to an unscaled DFT.
+ *
+ * The CONFIG register exposes the synthesized FFT length, data width, and
+ * enabled build options. The CYCLES register latches the number of accelerator
+ * clock cycles used by the previous DMA plus compute transaction.
+ *
+ * STATUS.DONE is sticky. Software clears it by writing a one to the DONE bit.
+ * Starting a new transfer also clears the previous DONE indication.
  *
  * A blocking transfer is normally issued with fft_run(). Lower-level helpers
  * are provided for tests, benchmarks, and code that wants to poll or use the
@@ -36,6 +43,14 @@
  */
 enum {
     FFT_N = 16,
+};
+
+/**
+ * @brief Compile-time FFT scaling modes reported by the CONFIG register.
+ */
+enum {
+    FFT_SCALE_NONE = 0,
+    FFT_SCALE_EACH_STAGE = 1,
 };
 
 /**
@@ -62,6 +77,8 @@ typedef uint32_t fft_sample_t;
 #define FFT_SRC_ADDR_OFFSET    0x08
 #define FFT_DST_ADDR_OFFSET    0x0C
 #define FFT_IRQ_CTRL_OFFSET    0x10
+#define FFT_CONFIG_OFFSET      0x14
+#define FFT_CYCLES_OFFSET      0x18
 /** @} */
 
 /**
@@ -77,6 +94,21 @@ typedef uint32_t fft_sample_t;
 /** @{ */
 #define FFT_STATUS_BUSY_BIT    0
 #define FFT_STATUS_DONE_BIT    1
+/** @} */
+
+/**
+ * @name CONFIG register fields
+ */
+/** @{ */
+#define FFT_CONFIG_LENGTH_MASK       0x000000FFu
+#define FFT_CONFIG_LOG2_SHIFT        8
+#define FFT_CONFIG_LOG2_MASK         0x00000F00u
+#define FFT_CONFIG_DATA_WIDTH_SHIFT  16
+#define FFT_CONFIG_DATA_WIDTH_MASK   0x00FF0000u
+#define FFT_CONFIG_INVERSE_BIT       24
+#define FFT_CONFIG_SCALE_MODE_SHIFT  25
+#define FFT_CONFIG_SCALE_MODE_MASK   0x06000000u
+#define FFT_CONFIG_BIT_REVERSE_BIT   27
 /** @} */
 
 /**
@@ -124,7 +156,8 @@ static inline uint32_t fft_read_reg(uint32_t offset) {
  * @brief Read the accelerator STATUS register.
  *
  * Bit FFT_STATUS_BUSY_BIT is set while a run is active. Bit
- * FFT_STATUS_DONE_BIT is set when the most recent run has completed.
+ * FFT_STATUS_DONE_BIT is set when a run has completed and remains set until
+ * cleared with fft_clear_done() or by starting another run.
  */
 static inline uint32_t fft_status(void) {
     return fft_read_reg(FFT_STATUS_OFFSET);
@@ -142,6 +175,79 @@ static inline int fft_busy(void) {
  */
 static inline int fft_done(void) {
     return (fft_status() >> FFT_STATUS_DONE_BIT) & 1u;
+}
+
+/**
+ * @brief Clear the sticky DONE status bit.
+ *
+ * The STATUS register uses write-one-to-clear semantics for DONE. Other bits
+ * ignore writes.
+ */
+static inline void fft_clear_done(void) {
+    fft_write_reg(FFT_STATUS_OFFSET, 1u << FFT_STATUS_DONE_BIT);
+}
+
+/**
+ * @brief Read the accelerator CONFIG register.
+ */
+static inline uint32_t fft_config(void) {
+    return fft_read_reg(FFT_CONFIG_OFFSET);
+}
+
+/**
+ * @brief Return the synthesized FFT length reported by hardware.
+ */
+static inline uint32_t fft_config_length(void) {
+    return fft_config() & FFT_CONFIG_LENGTH_MASK;
+}
+
+/**
+ * @brief Return log2 of the synthesized FFT length.
+ */
+static inline uint32_t fft_config_log2_length(void) {
+    return (fft_config() & FFT_CONFIG_LOG2_MASK) >> FFT_CONFIG_LOG2_SHIFT;
+}
+
+/**
+ * @brief Return the synthesized signed component width in bits.
+ */
+static inline uint32_t fft_config_data_width(void) {
+    return (fft_config() & FFT_CONFIG_DATA_WIDTH_MASK) >> FFT_CONFIG_DATA_WIDTH_SHIFT;
+}
+
+/**
+ * @brief Return non-zero when hardware is built as an inverse FFT.
+ */
+static inline int fft_config_inverse(void) {
+    return (fft_config() >> FFT_CONFIG_INVERSE_BIT) & 1u;
+}
+
+/**
+ * @brief Return the synthesized fixed-point scaling mode.
+ */
+static inline uint32_t fft_config_scale_mode(void) {
+    return (fft_config() & FFT_CONFIG_SCALE_MODE_MASK) >> FFT_CONFIG_SCALE_MODE_SHIFT;
+}
+
+/**
+ * @brief Return non-zero when each butterfly stage scales by one bit.
+ */
+static inline int fft_config_scale_stages(void) {
+    return fft_config_scale_mode() == FFT_SCALE_EACH_STAGE;
+}
+
+/**
+ * @brief Return non-zero when input samples are loaded in bit-reversed order.
+ */
+static inline int fft_config_bit_reverse(void) {
+    return (fft_config() >> FFT_CONFIG_BIT_REVERSE_BIT) & 1u;
+}
+
+/**
+ * @brief Read the accelerator cycle count from the previous completed run.
+ */
+static inline uint32_t fft_cycles(void) {
+    return fft_read_reg(FFT_CYCLES_OFFSET);
 }
 
 /**
@@ -165,7 +271,10 @@ static inline void fft_set_dst(fft_sample_t *dst) {
 }
 
 /**
- * @brief Enable or disable the accelerator interrupt output.
+ * @brief Enable or disable the accelerator completion interrupt.
+ *
+ * The interrupt output remains asserted while both IRQ enable and sticky DONE
+ * are set. Clear DONE in the interrupt handler to deassert it.
  */
 static inline void fft_irq_enable(int enable) {
     fft_write_reg(FFT_IRQ_CTRL_OFFSET, enable ? 1u : 0u);

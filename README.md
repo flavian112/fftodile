@@ -28,8 +28,18 @@ sample[31:16] = signed 16-bit real component
 sample[15:0]  = signed 16-bit imaginary component
 ```
 
-The hardware applies one arithmetic right shift per butterfly stage, so the
-16-point FFT output is scaled by `1/16` relative to an unscaled DFT.
+The default hardware build applies one arithmetic right shift per butterfly
+stage, so the 16-point FFT output is scaled by `1/16` relative to an unscaled
+DFT. The FFT scaling behavior is a compile-time RTL parameter; the selected mode
+is reported through the `CONFIG` register.
+
+The top-level RTL parameters for the accelerator are:
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `FftLength` | `16` | complex samples per run |
+| `FftDataWidth` | `16` | signed bits per real/imaginary component |
+| `FftScalingMode` | `1` | `0`: no butterfly scaling, `1`: scale each stage |
 
 ## Architecture
 
@@ -70,10 +80,23 @@ FFT accelerator register map, relative to `FFT_BASE_ADDR = 0x2000_1000`:
 | Offset | Register | Description |
 | --- | --- | --- |
 | `0x00` | `CTRL` | bit 0 starts one FFT run |
-| `0x04` | `STATUS` | bit 0 busy, bit 1 done |
+| `0x04` | `STATUS` | bit 0 busy, bit 1 sticky done; write 1 to done to clear |
 | `0x08` | `SRC_ADDR` | source buffer address |
 | `0x0C` | `DST_ADDR` | destination buffer address |
-| `0x10` | `IRQ_CTRL` | bit 0 enables completion interrupt |
+| `0x10` | `IRQ_CTRL` | bit 0 enables completion interrupt while done is set |
+| `0x14` | `CONFIG` | synthesized FFT length, data width, scaling mode, and build flags |
+| `0x18` | `CYCLES` | cycle count of the previous accelerator run |
+
+`CONFIG` fields:
+
+| Bits | Field | Description |
+| --- | --- | --- |
+| `[7:0]` | `LENGTH` | synthesized FFT length |
+| `[11:8]` | `LOG2_LENGTH` | `log2(LENGTH)` |
+| `[23:16]` | `DATA_WIDTH` | signed component width |
+| `[24]` | `INVERSE` | inverse FFT build flag |
+| `[26:25]` | `SCALE_MODE` | `0`: no butterfly scaling, `1`: scale each stage |
+| `[27]` | `BIT_REVERSE` | input is loaded in bit-reversed order |
 
 The user ROM returns the null-terminated chip ID string:
 
@@ -137,6 +160,15 @@ Run the FFT correctness simulation:
 
 ```sh
 make test-fft
+```
+
+To test an alternate Verilator compile-time FFT configuration, clean the
+simulator and pass a top-level parameter override. For example, no butterfly
+scaling:
+
+```sh
+make clean-sim
+make test-fft VERILATOR_FLAGS=-GFftScalingMode=0
 ```
 
 Run the FFT benchmark simulation:
