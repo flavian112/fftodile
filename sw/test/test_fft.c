@@ -63,8 +63,8 @@ static int test_register_readback(void) {
     uint32_t is_inverse = fft_config_inverse();
 
     CHECK_ASSERT(2, fft_config_length() == FFT_N);
-    CHECK_ASSERT(3, fft_config_log2_length() == 4);
-    CHECK_ASSERT(4, fft_config_data_width() == 16);
+    CHECK_ASSERT(3, fft_config_log2_length() == FFT_SYNTH_LOG2_LENGTH);
+    CHECK_ASSERT(4, fft_config_data_width() == FFT_SYNTH_DATA_WIDTH);
     // Verify CONFIG register reports inverse mode (may be 0 or 1 depending on build)
     CHECK_ASSERT(5, (is_inverse == 0) || (is_inverse == 1));
     CHECK_ASSERT(6, (scale_mode == FFT_SCALE_NONE) || (scale_mode == FFT_SCALE_EACH_STAGE));
@@ -148,21 +148,21 @@ static int test_nyquist_vector(void) {
 }
 
 static int test_conjugate_symmetric_input(void) {
+    int half_n = FFT_N / 2;
+
     clear_input_buffer();
 
     input_buffer[0] = FFT_SAMPLE(512, 0);
-    input_buffer[1] = FFT_SAMPLE(700, -120);
-    input_buffer[2] = FFT_SAMPLE(-300, 450);
-    input_buffer[3] = FFT_SAMPLE(128, 900);
-    input_buffer[4] = FFT_SAMPLE(-1024, 0);
-    input_buffer[5] = FFT_SAMPLE(64, -700);
-    input_buffer[6] = FFT_SAMPLE(333, 111);
-    input_buffer[7] = FFT_SAMPLE(-222, 555);
-    input_buffer[8] = FFT_SAMPLE(-256, 0);
+    for (int index = 1; index < half_n; index++) {
+        int16_t real = (int16_t)(700 - 113 * index);
+        int16_t imag = (int16_t)((index & 1) ? (-120 - 80 * index) : (140 + 70 * index));
 
-    for (int index = 1; index < FFT_N / 2; index++) {
-        input_buffer[FFT_N - index] = fft_pack(fft_real(input_buffer[index]), -fft_imag(input_buffer[index]));
+        input_buffer[index] = fft_pack(real, imag);
+        input_buffer[FFT_N - index] = fft_pack(real, (int16_t)-imag);
     }
+
+    // Nyquist bin for even-length FFT must be purely real for this construction.
+    input_buffer[half_n] = FFT_SAMPLE(-1024, 0);
 
     return run_prepared_vector(2300, 1);
 }

@@ -29,6 +29,21 @@
 #define UART_FREQ           TB_FREQUENCY
 #define UART_BAUD           TB_BAUDRATE
 
+// FFT synthesized configuration expected by software tests and buffers.
+// Override these at compile time (for example with -DFFT_SYNTH_LENGTH=8)
+// when simulating a non-default FFT build.
+#ifndef FFT_SYNTH_LENGTH
+#define FFT_SYNTH_LENGTH     16
+#endif
+
+#ifndef FFT_SYNTH_LOG2_LENGTH
+#define FFT_SYNTH_LOG2_LENGTH 4
+#endif
+
+#ifndef FFT_SYNTH_DATA_WIDTH
+#define FFT_SYNTH_DATA_WIDTH 16
+#endif
+
 // Interrupts
 #define IRQ_SOFTWARE        3
 #define IRQ_TIMER           7

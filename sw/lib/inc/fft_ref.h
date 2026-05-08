@@ -16,8 +16,8 @@
  * @brief Small fixed-point FFT reference model for tests and benchmarks.
  *
  * This model intentionally mirrors the accelerator's fixed-point arithmetic:
- * 16-point radix-2 DIT FFT, Q1.15 twiddles, and the synthesized scaling mode
- * reported by the CONFIG register. It is not a generic FFT library.
+ * synthesized FFT_N-point radix-2 DIT FFT, Q1.15 twiddles, and the synthesized
+ * scaling mode reported by the CONFIG register. It is not a generic FFT library.
  *
  * Set FFT_REF_USE_ROUNDING to enable rounded shifts (round-half-up).
  * Default is 0 (truncation).
@@ -46,7 +46,8 @@ typedef struct {
     int16_t imag;
 } fft_ref_twiddle_t;
 
-// W_k = exp(-j*2*pi*k/16), represented as {cos(k), sin(k)} in Q1.15.
+// W_k = exp(-j*2*pi*k/N), represented as {cos(k), sin(k)} in Q1.15.
+#if FFT_SYNTH_LENGTH == 16
 static const fft_ref_twiddle_t fft_ref_twiddles[FFT_N / 2] = {
     {32767,  0    },
     {30274,  12540},
@@ -57,6 +58,16 @@ static const fft_ref_twiddle_t fft_ref_twiddles[FFT_N / 2] = {
     {-23170, 23170},
     {-30274, 12540},
 };
+#elif FFT_SYNTH_LENGTH == 8
+static const fft_ref_twiddle_t fft_ref_twiddles[FFT_N / 2] = {
+    {32767,  0    },
+    {23170,  23170},
+    {0,      32767},
+    {-23170, 23170},
+};
+#else
+#error "fft_ref.h supports FFT_SYNTH_LENGTH values 8 or 16"
+#endif
 
 static inline void fft_ref_swap(fft_sample_t *a, fft_sample_t *b) {
     fft_sample_t tmp = *a;

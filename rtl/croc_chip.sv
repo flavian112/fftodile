@@ -8,7 +8,10 @@
 module croc_chip import croc_pkg::*; #(
   parameter int unsigned FftLength = 16,
   parameter int unsigned FftDataWidth = 16,
-  parameter int unsigned FftScalingMode = 1
+  parameter int unsigned FftScalingMode = 1,
+  parameter bit          FftInverse = 1'b0,
+  parameter bit          FftUseRounding = 1'b0,
+  parameter bit          FftUseSaturation = 1'b0
 ) (
   input  wire clk_i,
   input  wire rst_ni,
@@ -163,7 +166,10 @@ module croc_chip import croc_pkg::*; #(
     .GpioCount      ( GpioCount      ),
     .FftLength      ( FftLength      ),
     .FftDataWidth   ( FftDataWidth   ),
-    .FftScalingMode ( FftScalingMode )
+    .FftScalingMode ( FftScalingMode ),
+    .FftInverse     ( FftInverse     ),
+    .FftUseRounding ( FftUseRounding ),
+    .FftUseSaturation ( FftUseSaturation )
   )
   i_croc_soc (
     .clk_i          ( soc_clk_i      ),

@@ -9,7 +9,10 @@ module croc_soc import croc_pkg::*; #(
   parameter int unsigned GpioCount = 16,
   parameter int unsigned FftLength = 16,
   parameter int unsigned FftDataWidth = 16,
-  parameter int unsigned FftScalingMode = 1
+  parameter int unsigned FftScalingMode = 1,
+  parameter bit          FftInverse = 1'b0,
+  parameter bit          FftUseRounding = 1'b0,
+  parameter bit          FftUseSaturation = 1'b0
 ) (
   input  logic clk_i,
   input  logic rst_ni,
@@ -92,7 +95,10 @@ user_domain #(
   .NumExternalIrqs ( NumExternalIrqs ),
   .FftLength       ( FftLength       ),
   .FftDataWidth    ( FftDataWidth    ),
-  .FftScalingMode  ( FftScalingMode  )
+  .FftScalingMode  ( FftScalingMode  ),
+  .FftInverse      ( FftInverse      ),
+  .FftUseRounding  ( FftUseRounding  ),
+  .FftUseSaturation( FftUseSaturation )
 ) i_user (
   .clk_i,
   .rst_ni ( synced_rst_n ),

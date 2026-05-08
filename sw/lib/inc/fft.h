@@ -22,9 +22,9 @@
  *   sample[31:16] = signed 16-bit real component
  *   sample[15:0]  = signed 16-bit imaginary component
  *
- * Hardware currently implements a 16-point radix-2 FFT. The default build uses
- * one arithmetic right shift after each butterfly stage, giving an overall
- * scale factor of 1/16 relative to an unscaled DFT.
+ * Hardware implements a synthesized radix-2 FFT length selected at build time.
+ * Software assumes FFT_SYNTH_LENGTH from config.h and validates at runtime
+ * against the CONFIG register.
  *
  * The CONFIG register exposes the synthesized FFT length, data width, and
  * enabled build options. The CYCLES register latches the number of accelerator
@@ -42,7 +42,7 @@
  * @brief Number of complex samples consumed and produced by one accelerator run.
  */
 enum {
-    FFT_N = 16,
+    FFT_N = FFT_SYNTH_LENGTH,
 };
 
 /**
