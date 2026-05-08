@@ -34,6 +34,13 @@ CRT0     ?= crt0.S
 LINK     ?= link.ld
 SRCDIR   ?= lib/src
 INCDIR   ?= lib/inc
+CONFIG_HEADER ?= config.h
+CONFIG_SCRIPT ?= ../scripts/generate_sw_config.py
+CONFIG_INPUTS := $(CONFIG_SCRIPT) \
+	../rtl/croc_pkg.sv \
+	../rtl/user_pkg.sv \
+	../rtl/test/tb_croc_pkg.sv \
+	../rtl/croc_chip.sv
 
 # Collecting source files
 LIB_SOURCES  := $(wildcard $(SRCDIR)/*.[cS])
@@ -69,13 +76,16 @@ $(BINDIR):
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
+$(CONFIG_HEADER): $(CONFIG_INPUTS)
+	python3 $(CONFIG_SCRIPT)
+
 # Assembly to object compilation
-$(BUILDDIR)/%.o: %.S
+$(BUILDDIR)/%.o: %.S $(CONFIG_HEADER)
 	mkdir -p $(dir $@)
 	$(RISCV_CC) $(RISCV_CCFLAGS) -MMD -MP -c $< -o $@
 
 # C to object compilation
-$(BUILDDIR)/%.o: %.c
+$(BUILDDIR)/%.o: %.c $(CONFIG_HEADER)
 	mkdir -p $(dir $@)
 	$(RISCV_CC) $(RISCV_CCFLAGS) -MMD -MP -c $< -o $@
 
@@ -95,11 +105,13 @@ $(BINDIR)/%.hex: $(BINDIR)/%.elf
 	$(RISCV_OBJCOPY) -O verilog $< $@
 
 # Phonies
-.PHONY: all clean compile
+.PHONY: all clean compile config
+
+config: $(CONFIG_HEADER)
 
 clean:
 	rm -rf $(BINDIR) $(BUILDDIR)
 
-compile: $(BINDIR) $(BUILDDIR) $(ALL_TARGETS)
+compile: $(CONFIG_HEADER) $(BINDIR) $(BUILDDIR) $(ALL_TARGETS)
 
 -include $(DEPFILES)

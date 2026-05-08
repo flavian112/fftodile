@@ -61,6 +61,55 @@ jobs:
           name: short-flow-test-logs
           path: verilator/test_*.log
 
+  fft-variants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: default
+            verilator_flags: ''
+            riscv_ccflags: ''
+          - name: length8
+            verilator_flags: -GFftLength=8
+            riscv_ccflags: -DFFT_SYNTH_LENGTH=8 -DFFT_SYNTH_LOG2_LENGTH=3
+          - name: scale-none
+            verilator_flags: -GFftScalingMode=0
+            riscv_ccflags: ''
+          - name: inverse
+            verilator_flags: -GFftInverse=1
+            riscv_ccflags: -DFFT_REF_USE_INVERSE=1
+          - name: rounding-saturation
+            verilator_flags: -GFftUseRounding=1 -GFftUseSaturation=1
+            riscv_ccflags: -DFFT_REF_USE_ROUNDING=1 -DFFT_REF_USE_SATURATION=1
+    steps:
+      - name: Checkout repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Free disk space
+        uses: ./.github/actions/free-space
+      - name: Run FFT variant in OSEDA
+        uses: ./.github/actions/oseda-cmd
+        with:
+          cmd: >-
+            .github/scripts/run_fft_variant.sh
+            '${{ matrix.name }}'
+            '${{ matrix.verilator_flags }}'
+            '${{ matrix.riscv_ccflags }}'
+      - name: Upload FFT variant logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-flow-fft-${{ matrix.name }}
+          path: |
+            result.log
+            verilator/croc.log
+            verilator/croc.fst
+            verilator/fft-${{ matrix.name }}.log
+            verilator/fft-${{ matrix.name }}.fst
+
   synthesis:
     runs-on: ubuntu-latest
     timeout-minutes: 30
