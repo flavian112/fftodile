@@ -1,49 +1,103 @@
 # FFTodile
 
 FFTodile is a small FFT accelerator chip project built on top of the Croc
-educational SoC. The design uses a CVE2 RISC-V core, SRAM, a simple OBI
-interconnect, common SoC peripherals, and a custom user-domain FFT accelerator.
+educational SoC. It combines a CVE2 RISC-V core, SRAM, OBI interconnect,
+standard peripherals, and a custom user-domain FFT accelerator. The physical
+implementation targets the open-source IHP SG13G2 130 nm PDK.
 
-The physical implementation targets the open-source IHP SG13G2 130 nm PDK. The
-repository contains the RTL, bare-metal software, simulation setup, synthesis,
-place-and-route, KLayout finishing scripts, and artistic mask-generation support
-used for the project.
+The repository contains RTL, bare-metal software, Verilator simulation, Yosys
+synthesis, OpenROAD backend scripts, KLayout finishing, CI automation, and the
+ArtistIC rendering flow used for mask-art and GitHub Pages previews.
 
-## Project Status
+## Contents
+
+- [Project Overview](#project-overview)
+- [Quick Start](#quick-start)
+- [Repository Layout](#repository-layout)
+- [Architecture](#architecture)
+- [FFT Accelerator](#fft-accelerator)
+- [Software Interface](#software-interface)
+- [Build and Verification](#build-and-verification)
+- [ASIC Flow](#asic-flow)
+- [ArtistIC Flow](#artistic-flow)
+- [Configuration](#configuration)
+- [GitHub Actions](#github-actions)
+- [Development Guidelines](#development-guidelines)
+- [Upstream and License](#upstream-and-license)
+
+## Project Overview
 
 Current user-domain contents:
 
-- `rtl/user_domain/fft/fft_obi.sv`: memory-mapped OBI register/DMA wrapper for the FFT accelerator
-- `rtl/user_domain/fft/fft_core.sv`: compact iterative fixed-point FFT core
-- `rtl/user_domain/user_rom.sv`: user ROM containing the chip ID string
-- `sw/lib/inc/fft.h`: bare-metal software API for the FFT accelerator
-- `sw/test/test_fft.c`: deterministic correctness tests
-- `sw/benchmark_fft.c`: software-vs-hardware benchmark
+| Path | Purpose |
+| --- | --- |
+| `rtl/user_domain/fft/fft_obi.sv` | Memory-mapped OBI wrapper, register bank, memory transfers, interrupt, and cycle counter |
+| `rtl/user_domain/fft/fft_core.sv` | Compact iterative fixed-point radix-2 FFT datapath |
+| `rtl/user_domain/user_rom.sv` | Read-only chip identification string |
+| `sw/lib/inc/fft.h` | Bare-metal FFT accelerator API |
+| `sw/lib/inc/fft_ref.h` | Fixed-point software reference model for tests and benchmarks |
+| `sw/test/test_fft.c` | Deterministic FFT correctness test |
+| `sw/test/test_sram.c` | SRAM address/data test |
+| `sw/benchmark_fft.c` | Software-vs-hardware FFT benchmark |
 
-The FFT accelerator is a compile-time configured fixed-point radix-2 engine.
-Supported RTL lengths are 2/4/8/16 points, with 8-point and 16-point builds
-currently verified in simulation. Samples are packed as:
+The default build is a 16-point, forward, Q1.15-style fixed-point FFT with one
+arithmetic right shift per butterfly stage. Other supported compile-time
+variants are exercised in CI.
 
-```text
-sample[31:16] = signed 16-bit real component
-sample[15:0]  = signed 16-bit imaginary component
+## Quick Start
+
+Initialize submodules once:
+
+```sh
+make init
 ```
 
-The default hardware build applies one arithmetic right shift per butterfly
-stage (`FftScalingMode=1`). For the default 16-point build this gives an
-overall scale of `1/16` relative to an unscaled DFT. The selected build options
-are reported through the `CONFIG` register.
+Start the intended tool environment:
 
-The top-level RTL parameters for the accelerator are:
+```sh
+scripts/start_linux.sh
+```
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `FftLength` | `16` | complex samples per run |
-| `FftDataWidth` | `16` | signed bits per real/imaginary component |
-| `FftScalingMode` | `1` | `0`: no butterfly scaling, `1`: scale each stage |
-| `FftInverse` | `0` | `0`: forward FFT, `1`: inverse FFT |
-| `FftUseRounding` | `0` | `0`: truncate scaled results, `1`: round-half-up before shift |
-| `FftUseSaturation` | `0` | `0`: wrap on overflow, `1`: saturate to signed min/max |
+Inside the container shell, run the local preflight before pushing changes:
+
+```sh
+make preflight
+```
+
+Useful day-to-day commands:
+
+```sh
+make help
+make sw
+make test-fft
+make bench-fft
+make test-sram
+make sim BIN=sw/bin/test/print_config.hex
+make synth
+make flow
+```
+
+`make preflight` is the closest local equivalent to the GitHub preflight smoke
+job. It runs script syntax checks, restores the default configuration, runs
+helloworld and print-config simulation, validates SoC introspection output, and
+checks the default FFT correctness/benchmark metrics.
+
+## Repository Layout
+
+```text
+rtl/                  SystemVerilog SoC and user-domain RTL
+rtl/user_domain/      FFTodile user-domain RTL
+sw/                   Bare-metal software, tests, benchmark, and headers
+verilator/            Verilator simulation flow
+yosys/                Yosys synthesis flow
+openroad/             Floorplan, placement, CTS, routing, and finishing flow
+klayout/              DEF-to-GDS, seal ring, and fill flow
+artistic/             ArtistIC logo/render/map flow
+ihp13/                IHP SG13G2 technology integration and PDK submodule
+scripts/              Developer helper scripts and formatting tools
+.github/              CI workflows, composite actions, and CI helper scripts
+doc/                  Documentation images
+```
 
 ## Architecture
 
@@ -53,19 +107,29 @@ FFTodile keeps the original Croc split between the main SoC and the user domain.
 
 Main blocks:
 
-- `croc_domain`: CVE2 core, SRAM banks, debug module, main OBI interconnect, and basic peripherals
-- `user_domain`: FFT accelerator, user ROM, and an error subordinate for unmapped accesses
-- `fft_obi`: FFT control/status register bank, source/destination DMA, and completion interrupt
-- `fft_core`: iterative radix-2 FFT datapath with local storage and one reused butterfly
+- `croc_domain`: CVE2 core, SRAM banks, debug module, main OBI interconnect,
+  SoC control, CLINT, UART, GPIO, timer, and optional iDMA.
+- `user_domain`: user ROM, FFT accelerator, and an error subordinate for
+  unmapped user-domain accesses.
+- `fft_obi`: software-visible FFT register interface, source/destination memory
+  transfers, status, interrupt enable, and cycle accounting.
+- `fft_core`: iterative radix-2 FFT engine with local storage and a reused
+  butterfly datapath.
 
-The main interconnect protocol is OBI. The upstream OBI v1.6 specification is
-available from OpenHW Group.
+The main interconnect protocol is OBI. Most generated physical outputs are
+ignored by git and should be treated as build artifacts.
+
+Current layout snapshots:
+
+| Module Placement | Routed Design |
+| :---: | :---: |
+| <img src="doc/fftodile_modules.jpg" alt="FFTodile module placement" width="420"> | <img src="doc/fftodile_routed.jpg" alt="FFTodile routed design" width="420"> |
 
 ## Memory Map
 
-The relevant default address ranges are:
+Default platform address ranges:
 
-| Start Address | End Address | Description |
+| Start | End | Region |
 | --- | --- | --- |
 | `0x0000_0000` | `0x0004_0000` | Debug module |
 | `0x0200_0000` | `0x0200_4000` | Boot ROM |
@@ -77,207 +141,66 @@ The relevant default address ranges are:
 | `0x0300_B000` | `0x0300_C000` | Optional iDMA registers |
 | `0x1000_0000` | `+SRAM_SIZE` | SRAM banks |
 | `0x2000_0000` | `0x2000_1000` | User ROM |
-| `0x2000_1000` | `...` | FFT accelerator registers |
+| `0x2000_1000` | `...` | FFT accelerator |
 
-FFT accelerator register map, relative to `FFT_BASE_ADDR = 0x2000_1000`:
-
-| Offset | Register | Description |
-| --- | --- | --- |
-| `0x00` | `CTRL` | bit 0 starts one FFT run |
-| `0x04` | `STATUS` | bit 0 busy, bit 1 sticky done; write 1 to done to clear |
-| `0x08` | `SRC_ADDR` | source buffer address |
-| `0x0C` | `DST_ADDR` | destination buffer address |
-| `0x10` | `IRQ_CTRL` | bit 0 enables completion interrupt while done is set |
-| `0x14` | `CONFIG` | synthesized FFT length, data width, scaling mode, and build flags |
-| `0x18` | `CYCLES` | cycle count of the previous accelerator run |
-
-`CONFIG` fields:
-
-| Bits | Field | Description |
-| --- | --- | --- |
-| `[7:0]` | `LENGTH` | synthesized FFT length |
-| `[11:8]` | `LOG2_LENGTH` | `log2(LENGTH)` |
-| `[23:16]` | `DATA_WIDTH` | signed component width |
-| `[24]` | `INVERSE` | inverse FFT build flag |
-| `[26:25]` | `SCALE_MODE` | `0`: no butterfly scaling, `1`: scale each stage |
-| `[27]` | `BIT_REVERSE` | input is loaded in bit-reversed order |
-
-The user ROM returns the null-terminated chip ID string:
+The user ROM returns:
 
 ```text
 FFTodile REV 1.0 - Flavian Kaufmann, Thanu Kanagalingam
 ```
 
-## Repository Layout
+## FFT Accelerator
+
+Samples are packed into one 32-bit word:
 
 ```text
-rtl/                  SystemVerilog RTL
-rtl/user_domain/      FFTodile user-domain RTL
-sw/                   Bare-metal software, tests, and benchmark
-verilator/            Verilator simulation flow
-yosys/                Synthesis flow
-openroad/             Floorplan, placement, CTS, routing, finishing flow
-klayout/              DEF-to-GDS, seal ring, fill flow
-artistic/             GitHub Pages / mask-art rendering flow
-ihp13/                IHP SG13G2 technology integration and PDK submodule
-scripts/              Development-container, checks, and formatting helpers
-doc/                  Documentation images
+sample[31:16] = signed 16-bit real component
+sample[15:0]  = signed 16-bit imaginary component
 ```
 
-## Tool Environment
+Top-level compile-time parameters:
 
-The intended development flow uses the `hpretl/iic-osic-tools:2025.12`
-container through the repository scripts. Start an interactive development shell
-with:
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `FftLength` | `16` | Number of complex samples per run |
+| `FftDataWidth` | `16` | Signed bits per real/imaginary component |
+| `FftScalingMode` | `1` | `0`: no butterfly scaling, `1`: scale each stage |
+| `FftInverse` | `0` | `0`: forward FFT, `1`: inverse FFT |
+| `FftUseRounding` | `0` | `0`: truncate scaled results, `1`: round-half-up before shift |
+| `FftUseSaturation` | `0` | `0`: wrap on overflow, `1`: saturate to signed min/max |
 
-```sh
-scripts/start_linux.sh
-```
+Supported RTL lengths are 2, 4, 8, and 16 points. The default 16-point build and
+a representative 8-point build are covered by simulation. The software
+reference model currently supports the verified 8-point and 16-point cases.
 
-Inside that shell, use the top-level Makefile. The Docker container provides the
-RISC-V toolchain, Verilator, Yosys, OpenROAD, KLayout, Bender, and the other
-tools needed by the flow.
+Register map relative to `FFT_BASE_ADDR = 0x2000_1000`:
 
-The PDK is a git submodule under `ihp13/pdk` and is patched by `env.sh` during
-tool setup. If Git keeps reporting that submodule as dirty after the patch is
-applied, this local setting is useful:
+| Offset | Register | Description |
+| --- | --- | --- |
+| `0x00` | `CTRL` | Bit 0 starts one run |
+| `0x04` | `STATUS` | Bit 0 busy, bit 1 sticky done; write 1 to bit 1 to clear |
+| `0x08` | `SRC_ADDR` | Source buffer address |
+| `0x0C` | `DST_ADDR` | Destination buffer address |
+| `0x10` | `IRQ_CTRL` | Bit 0 enables completion interrupt while done is set |
+| `0x14` | `CONFIG` | Synthesized FFT length, width, scaling mode, and build flags |
+| `0x18` | `CYCLES` | Accelerator cycle count for the previous run |
 
-```sh
-git config submodule.ihp13/pdk.ignore dirty
-```
+`CONFIG` fields:
 
-## Common Commands
-
-Initialize submodules:
-
-```sh
-make init
-```
-
-Build all bare-metal software images:
-
-```sh
-make sw
-```
-
-Run the local preflight checks before pushing:
-
-```sh
-make preflight
-```
-
-This mirrors the GitHub preflight smoke job: script syntax checks, default
-configuration sanity, helloworld/print-config simulation, and the default FFT
-correctness plus benchmark regression check.
-
-Run the FFT correctness simulation:
-
-```sh
-make test-fft
-```
-
-To test an alternate Verilator compile-time FFT configuration, clean the
-simulator and pass a top-level parameter override. For example, no butterfly
-scaling:
-
-```sh
-make clean-sim
-make test-fft VERILATOR_FLAGS=-GFftScalingMode=0
-
-# Example: inverse FFT + rounding + saturation
-make clean-sim
-make test-fft \
-  VERILATOR_FLAGS='-GFftInverse=1 -GFftUseRounding=1 -GFftUseSaturation=1' \
-  RISCV_EXTRA_CCFLAGS='-DFFT_REF_USE_INVERSE=1 -DFFT_REF_USE_ROUNDING=1 -DFFT_REF_USE_SATURATION=1'
-
-# Example: 8-point FFT build with matching software expectations
-make clean-sim
-make test-fft \
-  VERILATOR_FLAGS='-GFftLength=8' \
-  RISCV_EXTRA_CCFLAGS='-DFFT_SYNTH_LENGTH=8 -DFFT_SYNTH_LOG2_LENGTH=3'
-```
-
-The short CI flow runs a compact FFT matrix over representative build classes:
-default 16-point, 8-point length, no-per-stage scaling, inverse mode, and a
-combined rounding+saturation build. When adding a new FFT operating mode, add
-at least one matching matrix entry so hardware parameters and software
-reference-model flags stay aligned in CI.
-
-Run the FFT benchmark simulation:
-
-```sh
-make bench-fft
-```
-
-The benchmark now runs repeated deterministic cases and reports min/median/max
-cycle counts for software-visible runtime, accelerator runtime, and
-transfer/host overhead for hardware runs. It emits both human-readable summary
-lines and `BENCH_CSV,...` records that CI extracts into a CSV artifact.
-
-Run a specific hex image in Verilator:
-
-```sh
-make sim BIN=sw/bin/test/test_fft.hex
-```
-
-Regenerate generated file lists:
-
-```sh
-make flist
-```
-
-Run synthesis:
-
-```sh
-make synth
-```
-
-Run the full OpenROAD backend after synthesis:
-
-```sh
-make backend
-```
-
-Generate and seal GDS:
-
-```sh
-make gds
-make seal
-```
-
-Run the usual clean ASIC flow through sealed GDS:
-
-```sh
-make flow
-```
-
-Remove generated outputs:
-
-```sh
-make clean
-```
-
-Use `make help` for the full target list.
-
-## Local Checks
-
-Check Python and C/C++ formatting:
-
-```sh
-make lint
-```
-
-Apply formatting fixes:
-
-```sh
-make lint-fix
-```
+| Bits | Field | Description |
+| --- | --- | --- |
+| `[7:0]` | `LENGTH` | Synthesized FFT length |
+| `[11:8]` | `LOG2_LENGTH` | `log2(LENGTH)` |
+| `[23:16]` | `DATA_WIDTH` | Signed component width |
+| `[24]` | `INVERSE` | Inverse FFT build flag |
+| `[26:25]` | `SCALE_MODE` | `0`: no scaling, `1`: scale each stage |
+| `[27]` | `BIT_REVERSE` | Input is loaded in bit-reversed order |
 
 ## Software Interface
 
-The FFT software API is in `sw/lib/inc/fft.h`.
+The public bare-metal API lives in `sw/lib/inc/fft.h`.
 
-Typical use:
+Minimal usage:
 
 ```c
 #include "fft.h"
@@ -293,82 +216,125 @@ for (int i = 1; i < FFT_N; i++) {
 fft_run(input, output);
 ```
 
-For test and benchmark reference calculations, `sw/lib/inc/fft_ref.h` contains a
-small fixed-point software model that mirrors the hardware arithmetic.
+The API exposes register access helpers, configuration decoding, busy/done
+status, optional interrupt enable, cycle count reads, and blocking
+out-of-place/in-place runs. Tests and benchmarks use `sw/lib/inc/fft_ref.h` as
+the fixed-point reference model.
 
-The benchmark (`sw/benchmark_fft.c`) reports:
+For non-default FFT simulations, keep hardware and software compile-time flags
+aligned. Examples:
+
+```sh
+# Disable per-stage scaling.
+make clean-sim
+make test-fft VERILATOR_FLAGS=-GFftScalingMode=0
+
+# Inverse FFT with rounding and saturation.
+make clean-sim
+make test-fft \
+  VERILATOR_FLAGS='-GFftInverse=1 -GFftUseRounding=1 -GFftUseSaturation=1' \
+  RISCV_EXTRA_CCFLAGS='-DFFT_REF_USE_INVERSE=1 -DFFT_REF_USE_ROUNDING=1 -DFFT_REF_USE_SATURATION=1'
+
+# 8-point FFT build.
+make clean-sim
+make test-fft \
+  VERILATOR_FLAGS='-GFftLength=8' \
+  RISCV_EXTRA_CCFLAGS='-DFFT_SYNTH_LENGTH=8 -DFFT_SYNTH_LOG2_LENGTH=3'
+```
+
+## Build and Verification
+
+Top-level Makefile variables:
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `PROJ_NAME` | `croc` | Backend/finishing project name |
+| `TOP_DESIGN` | `croc_chip` | Physical-flow top design |
+| `BIN` | `sw/bin/helloworld.hex` | Hex image used by `make sim` |
+| `VERILATOR_FLAGS` | empty | Extra Verilator/top-parameter flags |
+
+Main targets:
+
+| Target | Purpose |
+| --- | --- |
+| `make init` | Initialize submodules |
+| `make sw` | Build all software images |
+| `make lint` | Check Python and C/C++ formatting |
+| `make lint-fix` | Apply formatting fixes |
+| `make preflight` | Run local CI-like smoke/regression checks |
+| `make sim BIN=...` | Build software, build Verilator, and run one hex image |
+| `make test-fft` | Run FFT correctness simulation |
+| `make bench-fft` | Run FFT benchmark simulation |
+| `make test-sram` | Run SRAM address/data simulation |
+| `make flist` | Regenerate generated file lists |
+| `make clean` | Remove generated software, simulation, and flow outputs |
+
+The benchmark reports:
 
 - software-visible cycle count for software FFT
 - software-visible cycle count for hardware FFT
-- accelerator-reported cycle count (`CYCLES` register)
-- estimated transfer/host overhead (`software-visible - accelerator`)
+- accelerator-reported cycle count from `CYCLES`
+- estimated host/transfer overhead
 - out-of-place and in-place hardware runs
+- `BENCH_CSV,...` lines consumed by CI
+
+Print-config introspection is validated by `.github/scripts/check_print_config.py`.
+It checks the SoC info word, SRAM sizing, generated peripheral base addresses,
+optional iDMA presence, user ROM contents, and basic JTAG/core execution
+sequence.
 
 ## ASIC Flow
 
-The top-level flow wraps the lower-level scripts:
+The ASIC flow is wrapped by the top-level Makefile:
 
-```mermaid
-graph LR;
-  Bender-->Yosys;
-  Yosys-->OpenROAD;
-  OpenROAD-->KLayout;
+```text
+Bender/file lists -> Yosys -> OpenROAD -> KLayout
 ```
 
-The main stages are:
+Stage targets:
 
-1. Bender/file lists define the RTL compilation order.
-2. Yosys parses and maps RTL to the IHP SG13G2 standard-cell library.
-3. OpenROAD performs floorplan, placement, CTS, routing, and finishing.
-4. KLayout streams DEF to GDS, merges the seal ring, and can add fill.
+| Target | Stage |
+| --- | --- |
+| `make synth` | Yosys synthesis |
+| `make floorplan` | OpenROAD floorplan |
+| `make placement` | OpenROAD placement |
+| `make cts` | OpenROAD clock-tree synthesis |
+| `make routing` | OpenROAD routing |
+| `make finishing` | OpenROAD finishing |
+| `make backend` | All OpenROAD stages |
+| `make gds` | KLayout DEF-to-GDS |
+| `make seal` | Merge seal ring |
+| `make fill` | Add fill |
+| `make flow` | `synth backend gds seal` |
 
-Current layout snapshots:
+Clean targets:
 
-| Module Placement | Routed Design |
-| :---: | :---: |
-| <img src="doc/fftodile_modules.jpg" alt="FFTodile module placement" width="420"> | <img src="doc/fftodile_routed.jpg" alt="FFTodile routed design" width="420"> |
+| Target | Removed outputs |
+| --- | --- |
+| `make clean-sw` | `sw/bin`, `sw/build` |
+| `make clean-sim` | Verilator build/log/waveform outputs |
+| `make clean-flow` | Yosys, OpenROAD, and KLayout outputs |
+| `make clean` | All of the above |
 
-Useful stage targets:
+Generated logs, reports, waveforms, OpenROAD outputs, and GDS outputs are not
+intended to be committed.
 
-```sh
-make synth
-make floorplan
-make placement
-make cts
-make routing
-make finishing
-make backend
-make gds
-make seal
-make fill
-```
+## ArtistIC Flow
 
-Generated outputs are intentionally not tracked. Use the clean targets when
-rerunning a stage from scratch:
+The `artistic/` directory contains the rendering flow for GitHub Pages and
+top-metal artwork previews. This flow is separate from functional RTL
+verification.
 
-```sh
-make clean-synth
-make clean-backend
-make clean-gds
-make clean-flow
-```
+Typical local sequence:
 
-## Artistic Flow
-
-The `artistic/` directory contains the rendering flow used for GitHub Pages and
-for previewing the top-metal artwork/map views. The artwork is for visualization
-and mask-art generation; it is separate from the functional RTL.
-
-Typical local sequence, split by environment:
-
-On the host, with Inkscape/ImageMagick available:
+On the host, with Inkscape and ImageMagick available:
 
 ```sh
 cd artistic
 ./run_artistic.sh --prepare-logo
 ```
 
-In the OSIC/OSEDA container:
+Inside the OSEDA container:
 
 ```sh
 cd /fosic/designs/croc/artistic
@@ -388,110 +354,111 @@ cd mapify
 python3 -m http.server 8000
 ```
 
-Then open `http://localhost:8000` to inspect the generated map tiles.
+Open `http://localhost:8000` to inspect the generated map viewer.
 
-## Configuration Notes
+## Configuration
 
-Main SoC configuration lives in `rtl/croc_pkg.sv`.
+Main configuration sources:
 
-Software-visible platform constants in `sw/config.h` are generated from RTL by
-`scripts/generate_sw_config.py` and refreshed automatically by `make sw`.
-The canonical sources are:
+| Source | Owns |
+| --- | --- |
+| `rtl/croc_pkg.sv` | SoC configuration, core selection, SRAM sizing, main address map |
+| `rtl/user_pkg.sv` | User-domain address map |
+| `rtl/test/tb_croc_pkg.sv` | Verilator testbench clock/UART defaults |
+| `rtl/croc_chip.sv` | Default FFT top-level parameters exposed to software |
+| `scripts/generate_sw_config.py` | Generation of `sw/config.h` from RTL sources |
 
-- `rtl/croc_pkg.sv` for the main SoC and peripheral address map
-- `rtl/user_pkg.sv` for user-domain address placement
-- `rtl/test/tb_croc_pkg.sv` for testbench UART and clock defaults
-- `rtl/croc_chip.sv` for the default FFT build parameters exposed to software
+`sw/config.h` is generated. Do not edit it by hand. It is refreshed by normal
+software builds such as `make sw`, `make test-fft`, and `make preflight`.
 
-Important SRAM parameters:
+Current default SRAM configuration:
 
 - `NumSramBanks = 2`
 - `SramBankNumWords = 1024`
 
-The physical IHP SRAM mapping is implemented through `ihp13/tc_sram_impl.sv`.
-The current `1024 x 32` logical SRAM bank maps to an IHP SRAM macro through that
-technology wrapper.
+The technology-specific SRAM mapping is implemented through
+`ihp13/tc_sram_impl.sv`.
 
-User-domain address rules live in `rtl/user_pkg.sv`. The FFT accelerator is
-currently mapped into the `UserDesign` region starting at `0x2000_1000`.
+The PDK is a git submodule under `ihp13/pdk` and is patched by `env.sh` during
+tool setup. If git reports that submodule as dirty after the patch is applied,
+use:
 
-For non-default FFT simulations, keep the Verilator parameter override and the
-software compile-time override aligned. For example, `VERILATOR_FLAGS='-GFftLength=8'`
-still needs matching `RISCV_EXTRA_CCFLAGS='-DFFT_SYNTH_LENGTH=8 -DFFT_SYNTH_LOG2_LENGTH=3'`.
+```sh
+git config submodule.ihp13/pdk.ignore dirty
+```
 
-## Updating RTL Sources
+## GitHub Actions
 
-When adding, removing, or moving RTL files:
+All GitHub-owned JavaScript actions are pinned to Node 24-capable major
+versions.
+
+| Workflow | Triggers | Purpose |
+| --- | --- | --- |
+| `Preflight` | PRs, pushes to any branch, manual | Formatting, generated-file sanity, local preflight smoke simulation |
+| `Short Flow` | PRs, pushes to `main`, manual | Simulation flow, FFT variant matrix, benchmark, synthesis metrics |
+| `Full Flow` | PRs, pushes to `main`, releases, manual | Yosys/OpenROAD/KLayout full backend flow through sealed GDS |
+| `ArtistIC Render` | Successful Full Flow on `main`, pushes to `artistic/**`, manual | Logo/artistic rendering, map generation, GitHub Pages deployment |
+
+Important CI scripts:
+
+| Script | Purpose |
+| --- | --- |
+| `.github/scripts/run_preflight.sh` | Local/CI preflight smoke and default FFT regression |
+| `.github/scripts/run_sim_flow.sh` | Default smoke simulation plus iDMA-enabled unit tests |
+| `.github/scripts/run_fft_variant.sh` | One FFT build variant test+benchmark+metrics run |
+| `.github/scripts/run_benchmark.sh` | Standalone FFT benchmark artifact generation |
+| `.github/scripts/run_synth_flow.sh` | Synthesis run and metrics extraction |
+| `.github/scripts/run_full_flow.sh` | Full physical flow |
+| `.github/scripts/check_print_config.py` | Print-config log validator |
+| `.github/scripts/check_metrics.py` | Variant and synthesis metric threshold checks |
+
+CI regression thresholds live in `.github/metrics/baseline.json`. Update them
+deliberately when a measured regression or improvement is expected. Generated
+per-run metrics should remain CI artifacts, not committed files.
+
+## Development Guidelines
+
+For RTL source membership changes:
 
 1. Update `Bender.yml`.
-2. Regenerate file lists with `make flist`, or update checked-in generated lists
-   deliberately if you are avoiding Bender in a given environment.
+2. Run `make flist`.
 3. Run at least `make test-fft`.
-4. For synthesis-impacting changes, also run `make synth`.
+4. For synthesis-impacting changes, run `make synth`.
 
-## Guidelines
+For SoC or address-map changes:
 
-Use this checklist for changes that touch more than one surface.
+1. Edit the canonical RTL source.
+2. Refresh generated software constants with `make sw`.
+3. Run `make sim BIN=sw/bin/test/print_config.hex`.
+4. Run `.github/scripts/check_sim.sh verilator/croc.log` if you did not run a
+   wrapper flow that already calls it.
+5. Update documentation if the change is user-visible.
 
-SoC or address-map changes:
+For FFT operating-mode changes:
 
-1. Edit the canonical RTL source: `rtl/croc_pkg.sv` for SoC/peripheral config,
-  `rtl/user_pkg.sv` for user-domain placement, `rtl/test/tb_croc_pkg.sv` for
-  testbench defaults.
-2. Refresh software-visible constants with `make -C sw config` or any normal
-  `make sw` / `make test-fft` run.
-3. Run `make sim BIN=sw/bin/test/print_config.hex` and confirm the simulation
-  exits successfully. CI validates the printed SoC info word, SRAM sizing,
-  generated peripheral base addresses, optional iDMA presence, and user ROM
-  string with `.github/scripts/check_print_config.py`.
-4. Update README text if the change is user-visible.
+1. Keep Verilator top-parameter overrides and software reference-model macros
+   aligned.
+2. If a default FFT parameter changes, update the default in `rtl/croc_chip.sv`
+   so generated software constants remain correct.
+3. Add or update a representative entry in the `Short Flow` FFT variant matrix.
+4. Run the default test plus the affected variant locally.
 
-FFT operating-mode changes:
+Recommended validation:
 
-1. Keep hardware parameter changes and software reference-model macros aligned.
-2. If you add a new default FFT parameter, update the RTL default in
-  `rtl/croc_chip.sv` so the generated `sw/config.h` stays correct.
-3. If you add a new non-default FFT mode, add a representative CI matrix entry
-  in `.github/workflows/short-flow.yml` and make sure the matching software
-  flags are passed to `test_fft.c`.
-4. Run `make clean-sw clean-sim && make test-fft` for the default build, plus a
-  matching overridden command for each newly supported variant.
+| Change type | Minimum local check |
+| --- | --- |
+| Formatting only | `make lint` |
+| FFT datapath or software model | `make test-fft` |
+| SoC/config/introspection | `make sim BIN=sw/bin/test/print_config.hex` |
+| Synthesis-impacting RTL | `make synth` |
+| PR-ready branch | `make preflight` |
 
-CI and generated files:
-
-1. Do not edit `sw/config.h` by hand; it is generated by
-  `scripts/generate_sw_config.py`.
-2. Regenerate file lists with `make flist` only when RTL source membership or
-  ordering changes.
-3. Do not check in generated logs, reports, Verilator build outputs, or OpenROAD
-  outputs.
-4. If a change adds or removes a user-facing command, CI job, or validation
-  expectation, update README and the relevant workflow/script in the same
-  change.
-
-CI regression thresholds live in `.github/metrics/baseline.json`. The short
-flow compares FFT variant runtime/benchmark metrics and default synthesis
-metrics against that file. Update the baseline deliberately when a measured
-change is expected, and keep the generated per-run metrics as artifacts rather
-than committing them.
-
-Expected validation baseline:
-
-1. Formatting-only changes: `make lint`
-2. FFT datapath or software-model changes: `make test-fft`
-3. SoC/config/introspection changes: `make sim BIN=sw/bin/test/print_config.hex`
-4. Synthesis-impacting RTL changes: `make synth`
-5. Before opening or updating a PR: `make preflight`
-
-## Upstream Context
+## Upstream and License
 
 This repository is based on Croc, an educational SoC developed as part of the
-PULP project by ETH Zurich and the University of Bologna. Croc includes a small
-CVE2-based SoC and scripts for IHP SG13G2-based chip implementation. FFTodile
-keeps that infrastructure and replaces the generic user-design area with the FFT
+PULP project by ETH Zurich and the University of Bologna. FFTodile keeps that
+infrastructure and replaces the generic user-design area with the FFT
 accelerator project.
-
-## License
 
 Unless specified otherwise in individual file headers, hardware sources and tool
 scripts are licensed under the Solderpad Hardware License 0.51. Software sources
