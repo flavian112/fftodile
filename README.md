@@ -441,7 +441,9 @@ SoC or address-map changes:
 2. Refresh software-visible constants with `make -C sw config` or any normal
   `make sw` / `make test-fft` run.
 3. Run `make sim BIN=sw/bin/test/print_config.hex` and confirm the simulation
-  exits successfully.
+  exits successfully. CI validates the printed SoC info word, SRAM sizing,
+  generated peripheral base addresses, optional iDMA presence, and user ROM
+  string with `.github/scripts/check_print_config.py`.
 4. Update README text if the change is user-visible.
 
 FFT operating-mode changes:

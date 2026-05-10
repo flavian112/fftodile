@@ -48,8 +48,8 @@ module soc_ctrl_regs #(
     3'(CoreId),                        // [23:21] core_id
     1'(CorePMPEnable),                 // [20]    pmp_enable
     4'b0,                              // [19:16] reserved (core features)
-    3'(NumSramBanks),                  // [15:12] sram_banks
-    8'(SramBankNumWords / 64),         // [11:5]  sram_bank_words (in units of 64 words)
+    3'(NumSramBanks),                  // [15:13] sram_banks
+    8'(SramBankNumWords / 64),         // [12:5]  sram_bank_words (in units of 64 words)
     5'b0                               // [4:0]   reserved
   };
 

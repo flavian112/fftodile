@@ -85,6 +85,7 @@ int main() {
     printf("Hello World from Croc v%x!\n", version);
 
     // SoC features
+    printf("  Info: 0x%x\n", info);
     printf("  iDMAEnable: %x\n", has_idma);
 
     // Core: type, ISA string from misa, optional PMP
@@ -122,7 +123,7 @@ int main() {
     for (uint32_t i = 0; i < NUM_PERIPHERALS; i++) {
         printf("  ");
         printf(peripherals[i].name);
-        printf(": ");
+        printf(" @0x%x: ", peripherals[i].addr);
         if (probe_read(peripherals[i].addr, &word)) {
             printf("not present\n");
         } else if (peripherals[i].addr == USER_ROM_BASE_ADDR) {
