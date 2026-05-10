@@ -47,7 +47,9 @@ if [[ -f croc.fst ]]; then
 fi
 
 cd "$CROC_ROOT"
-make clean-sim
+# Rebuild the simulator for the benchmark while preserving the copied
+# correctness artifacts above for CI upload.
+rm -rf verilator/obj_dir verilator/croc.log verilator/croc.fst verilator/croc_build.log
 
 bench_start=$(date +%s)
 make bench-fft "${make_args_common[@]}"

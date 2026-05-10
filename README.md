@@ -160,6 +160,16 @@ Build all bare-metal software images:
 make sw
 ```
 
+Run the local preflight checks before pushing:
+
+```sh
+make preflight
+```
+
+This mirrors the GitHub preflight smoke job: script syntax checks, default
+configuration sanity, helloworld/print-config simulation, and the default FFT
+correctness plus benchmark regression check.
+
 Run the FFT correctness simulation:
 
 ```sh
@@ -469,6 +479,7 @@ Expected validation baseline:
 2. FFT datapath or software-model changes: `make test-fft`
 3. SoC/config/introspection changes: `make sim BIN=sw/bin/test/print_config.hex`
 4. Synthesis-impacting RTL changes: `make synth`
+5. Before opening or updating a PR: `make preflight`
 
 ## Upstream Context
 

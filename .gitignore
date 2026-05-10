@@ -1,5 +1,6 @@
 .bender
 tmp
 *.log
+*.fst
 verilator/fft-*-benchmark.csv
 verilator/fft-*-metrics.json

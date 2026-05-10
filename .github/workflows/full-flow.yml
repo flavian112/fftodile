@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 180
     steps:
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
       - name: Free disk space
@@ -46,7 +46,7 @@ jobs:
           cmd: ".github/scripts/run_full_flow.sh"
       - name: Upload openroad outputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: full-flow-openroad-out
           path: |
@@ -54,13 +54,13 @@ jobs:
             openroad/logs
             openroad/reports
       - name: Upload gds
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: full-flow-gds
           path: klayout/out/croc.gds.gz
       - name: Upload sealed gds
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: full-flow-gds-sealed
           path: klayout/out/croc.sealed.gds.gz

@@ -32,7 +32,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
       - name: Free disk space
@@ -42,13 +42,13 @@ jobs:
         with:
           cmd: ".github/scripts/run_sim_flow.sh"
       - name: Upload built software
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-sw
           path: sw/bin
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-simulation-output
           path: |
@@ -56,7 +56,7 @@ jobs:
             verilator/croc.log
       - name: Upload test logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-test-logs
           path: verilator/test_*.log
@@ -85,7 +85,7 @@ jobs:
             riscv_ccflags: -DFFT_REF_USE_ROUNDING=1 -DFFT_REF_USE_SATURATION=1
     steps:
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
       - name: Free disk space
@@ -106,7 +106,7 @@ jobs:
           --metrics 'verilator/fft-${{ matrix.name }}-metrics.json'
       - name: Upload FFT variant logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-fft-${{ matrix.name }}
           path: |
@@ -124,7 +124,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
       - name: Free disk space
@@ -135,7 +135,7 @@ jobs:
           cmd: ".github/scripts/run_benchmark.sh"
       - name: Upload benchmark artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-benchmark
           path: |
@@ -150,7 +150,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: true
       - name: Free disk space
@@ -167,7 +167,7 @@ jobs:
           --metrics yosys/reports/croc_metrics.json
       - name: Upload synthesis outputs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: short-flow-synth-reports
           path: |

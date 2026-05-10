@@ -17,7 +17,7 @@ KLAYOUT   := cd klayout && ./run_finishing.sh
 
 CLANG_FORMAT_ARGS := -r sw --extensions c,h,cpp --clang-format-executable=clang-format-17
 
-.PHONY: help init sw lint lint-fix
+.PHONY: help init sw lint lint-fix preflight
 .PHONY: sim sim-build sim-run test-fft bench-fft test-sram flist
 .PHONY: synth floorplan placement cts routing finishing backend gds seal fill flow
 .PHONY: clean clean-sw clean-sim clean-flow
@@ -31,6 +31,7 @@ help:
 		'  sw            Build all software images' \
 		'  lint          Check Python and C/C++ formatting' \
 		'  lint-fix      Apply formatting fixes' \
+		'  preflight     Run the local CI smoke/regression checks' \
 		'  sim           Build software, Verilator, and run BIN' \
 		'  test-fft      Simulate the FFT correctness test' \
 		'  bench-fft     Simulate the FFT benchmark' \
@@ -60,6 +61,9 @@ lint:
 lint-fix:
 	black klayout/scripts
 	python3 scripts/run_clang_format.py -i $(CLANG_FORMAT_ARGS)
+
+preflight:
+	.github/scripts/run_preflight.sh
 
 sim: sw sim-build sim-run
 
