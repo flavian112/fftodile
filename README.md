@@ -457,6 +457,12 @@ CI and generated files:
   expectation, update README and the relevant workflow/script in the same
   change.
 
+CI regression thresholds live in `.github/metrics/baseline.json`. The short
+flow compares FFT variant runtime/benchmark metrics and default synthesis
+metrics against that file. Update the baseline deliberately when a measured
+change is expected, and keep the generated per-run metrics as artifacts rather
+than committing them.
+
 Expected validation baseline:
 
 1. Formatting-only changes: `make lint`

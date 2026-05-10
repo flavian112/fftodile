@@ -98,6 +98,12 @@ jobs:
             '${{ matrix.name }}'
             '${{ matrix.verilator_flags }}'
             '${{ matrix.riscv_ccflags }}'
+      - name: Check FFT variant metrics
+        run: >-
+          python3 .github/scripts/check_metrics.py variant
+          --variant '${{ matrix.name }}'
+          --baseline .github/metrics/baseline.json
+          --metrics 'verilator/fft-${{ matrix.name }}-metrics.json'
       - name: Upload FFT variant logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -109,6 +115,8 @@ jobs:
             verilator/croc.fst
             verilator/fft-${{ matrix.name }}.log
             verilator/fft-${{ matrix.name }}.fst
+            verilator/fft-${{ matrix.name }}-bench.log
+            verilator/fft-${{ matrix.name }}-benchmark.csv
             verilator/fft-${{ matrix.name }}-metrics.json
 
   benchmark:
@@ -151,6 +159,12 @@ jobs:
         uses: ./.github/actions/oseda-cmd
         with:
           cmd: ".github/scripts/run_synth_flow.sh"
+      - name: Check synthesis metrics (default config)
+        run: >-
+          python3 .github/scripts/check_metrics.py synth
+          --config default
+          --baseline .github/metrics/baseline.json
+          --metrics yosys/reports/croc_metrics.json
       - name: Upload synthesis outputs
         if: always()
         uses: actions/upload-artifact@v4

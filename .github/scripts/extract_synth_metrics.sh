@@ -4,17 +4,19 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Extract synthesis metrics from Yosys area reports and emit metrics.json.
-# Usage: extract_synth_metrics.sh <area_rpt> <out_json>
+# Usage: extract_synth_metrics.sh <area_rpt> <out_json> [netlist_file]
 #   <area_rpt>   path to croc_area.rpt (or croc_idma_area.rpt)
 #   <out_json>   path to write the output JSON file
+#   [netlist_file] optional synthesized netlist path for artifact-size metric
 
 set -euo pipefail
 
 AREA_RPT=${1:-}
 OUT_JSON=${2:-}
+NETLIST_FILE=${3:-}
 
 if [[ -z "$AREA_RPT" || -z "$OUT_JSON" ]]; then
-    echo "Usage: $0 <area_rpt> <out_json>" >&2
+    echo "Usage: $0 <area_rpt> <out_json> [netlist_file]" >&2
     exit 1
 fi
 
@@ -37,21 +39,33 @@ fi
 # Total pad ring + soc area: top-level croc_chip (no '$' in the path)
 chip_area=$(grep "Chip area for module" "$AREA_RPT" | grep -v '[$]' | grep "croc_chip" | awk '{print $NF}')
 
-# Logic area (no pad cells): croc_soc is the direct child of croc_chip
-soc_area=$(grep "Chip area for module" "$AREA_RPT" | grep 'croc_soc[$]croc_chip' | awk '{print $NF}')
-
 # User domain area (contains the FFT accelerator)
 user_area=$(grep "Chip area for module" "$AREA_RPT" | grep 'user_domain[$]croc_chip' | awk '{print $NF}')
 
+# Synthesis cell count from hierarchy summary (includes submodules)
+design_cell_count=$(awk '
+  /=== design hierarchy ===/ {in_h=1; next}
+  in_h && $NF == "croc_chip" {print $1; exit}
+' "$AREA_RPT")
+
+# Optional artifact size of synthesized netlist
+netlist_size_bytes=""
+if [[ -n "$NETLIST_FILE" && -f "$NETLIST_FILE" ]]; then
+  netlist_size_bytes=$(wc -c < "$NETLIST_FILE" | tr -d '[:space:]')
+fi
+
 # Provide null fallback for missing fields
 chip_area=${chip_area:-}
-soc_area=${soc_area:-}
 user_area=${user_area:-}
+design_cell_count=${design_cell_count:-}
+netlist_size_bytes=${netlist_size_bytes:-}
 
 echo "Synthesis metrics:"
 echo "  chip_area_um2   : ${chip_area:-<not found>}"
-echo "  soc_area_um2    : ${soc_area:-<not found>}"
 echo "  user_domain_um2 : ${user_area:-<not found>}"
+echo "  design_cells    : ${design_cell_count:-<not found>}"
+echo "  netlist_size_B  : ${netlist_size_bytes:-<not found>}"
+echo "  critical_path_ns: <not available in Yosys synth-only flow>"
 
 # --------------------------------------------------------------------------
 # Emit JSON
@@ -59,8 +73,10 @@ echo "  user_domain_um2 : ${user_area:-<not found>}"
 cat > "$OUT_JSON" <<EOF
 {
   "chip_area_um2": ${chip_area:-null},
-  "soc_area_um2": ${soc_area:-null},
-  "user_domain_um2": ${user_area:-null}
+  "user_domain_um2": ${user_area:-null},
+  "design_cell_count": ${design_cell_count:-null},
+  "netlist_size_bytes": ${netlist_size_bytes:-null},
+  "critical_path_ns": null
 }
 EOF
 

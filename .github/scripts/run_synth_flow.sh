@@ -14,6 +14,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CROC_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+cleanup() {
+    "$SCRIPT_DIR/set_croc_config.sh"
+}
+
+trap cleanup EXIT
+
 cd "$CROC_ROOT"
 
 echo "============================================="
@@ -33,7 +39,7 @@ cd "$CROC_ROOT"
 
 echo ""
 echo "Extracting synthesis metrics (default config)..."
-"$SCRIPT_DIR/extract_synth_metrics.sh" yosys/reports/croc_area.rpt yosys/reports/croc_metrics.json
+"$SCRIPT_DIR/extract_synth_metrics.sh" yosys/reports/croc_area.rpt yosys/reports/croc_metrics.json yosys/out/croc_yosys.v
 
 echo ""
 echo "============================================="
@@ -52,7 +58,7 @@ tail -n 40 reports/croc_idma_area.rpt
 cd "$CROC_ROOT"
 
 echo "Extracting synthesis metrics (iDMA config)..."
-"$SCRIPT_DIR/extract_synth_metrics.sh" yosys/reports/croc_idma_area.rpt yosys/reports/croc_idma_metrics.json
+"$SCRIPT_DIR/extract_synth_metrics.sh" yosys/reports/croc_idma_area.rpt yosys/reports/croc_idma_metrics.json yosys/out/croc_idma_yosys.v
 
 # Restore defaults
 "$SCRIPT_DIR/set_croc_config.sh"

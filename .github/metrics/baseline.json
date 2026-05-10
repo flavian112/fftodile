@@ -1,0 +1,55 @@
+{
+  "variant_threshold_pct": {
+    "sim_runtime_seconds": 50.0,
+    "rnd1_sw_visible_median_hex": 25.0,
+    "rnd1_hop_visible_median_hex": 25.0,
+    "rnd1_hip_visible_median_hex": 25.0
+  },
+  "variant_baseline": {
+    "default": {
+      "sim_runtime_seconds": 300,
+      "rnd1_sw_visible_median_hex": "0x5D11",
+      "rnd1_hop_visible_median_hex": "0x54",
+      "rnd1_hip_visible_median_hex": "0x54"
+    },
+    "length8": {
+      "sim_runtime_seconds": 300,
+      "rnd1_sw_visible_median_hex": "0x5D11",
+      "rnd1_hop_visible_median_hex": "0x54",
+      "rnd1_hip_visible_median_hex": "0x54"
+    },
+    "scale-none": {
+      "sim_runtime_seconds": 300,
+      "rnd1_sw_visible_median_hex": "0x5D11",
+      "rnd1_hop_visible_median_hex": "0x54",
+      "rnd1_hip_visible_median_hex": "0x54"
+    },
+    "inverse": {
+      "sim_runtime_seconds": 300,
+      "rnd1_sw_visible_median_hex": "0x5D11",
+      "rnd1_hop_visible_median_hex": "0x54",
+      "rnd1_hip_visible_median_hex": "0x54"
+    },
+    "rounding-saturation": {
+      "sim_runtime_seconds": 300,
+      "rnd1_sw_visible_median_hex": "0x5D11",
+      "rnd1_hop_visible_median_hex": "0x54",
+      "rnd1_hip_visible_median_hex": "0x54"
+    }
+  },
+  "synthesis_threshold_pct": {
+    "chip_area_um2": 10.0,
+    "user_domain_um2": 15.0,
+    "design_cell_count": 10.0,
+    "netlist_size_bytes": 25.0
+  },
+  "synthesis_baseline": {
+    "default": {
+      "chip_area_um2": 921600.0,
+      "user_domain_um2": 242255.2104,
+      "design_cell_count": 50064,
+      "netlist_size_bytes": null,
+      "critical_path_ns": null
+    }
+  }
+}
