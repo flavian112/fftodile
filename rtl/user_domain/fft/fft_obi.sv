@@ -17,6 +17,9 @@
 //   0x14 CONFIG    read-only build configuration
 //   0x18 CYCLES    read-only cycle count of the previous run
 //
+// DONE is sticky at the wrapper level: a new START clears it, transfer
+// completion sets it, and software may clear it via STATUS write-one-to-clear.
+//
 // Sample format is one 32-bit word per complex sample:
 //   sample[31:16] = signed real component
 //   sample[15:0]  = signed imaginary component
@@ -295,9 +298,9 @@ module fft_obi
     end
   end
 
-  // Counts the full accelerator transaction, including source reads, iterative
-  // compute, and destination writes. The value is informational only and does
-  // not feed back into the transfer FSM.
+  // Counts the full wrapper-visible transaction latency (source fetch,
+  // iterative FFT compute, destination store). The value is informational only
+  // and does not feed back into the transfer FSM.
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       cycle_count_q <= '0;

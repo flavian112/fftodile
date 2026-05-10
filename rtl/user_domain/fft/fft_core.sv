@@ -154,6 +154,7 @@ module fft_core #(
   assign sample_ready_o = state_q == StateLoad;
   assign result_valid_o = state_q == StateUnload;
   assign busy_o         = state_q != StateIdle;
+  // done_o is a one-cycle pulse when the final output sample is accepted.
   assign done_o         = accept_result & last_unload;
 
   assign accept_sample = sample_valid_i & sample_ready_o;
@@ -171,7 +172,8 @@ module fft_core #(
   assign lower_addr = group_base_q + butterfly_index_q;
   assign upper_addr = lower_addr + half_span;
 
-  // The table stores twiddles for a 16-point FFT. Smaller FFTs use a stride.
+  // Twiddles are stored for a 16-point FFT and reused via stage-dependent
+  // stride for supported shorter lengths (2/4/8).
   assign twiddle_index = butterfly_index_q[3:0] << (4'd3 - {1'b0, stage_q});
 
   assign lower_real  = real_mem_q[lower_addr[IndexWidth-1:0]];

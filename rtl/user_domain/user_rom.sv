@@ -10,9 +10,11 @@
 
 // Read-only user identification ROM.
 //
-// The ROM is mapped at UserBaseAddr. It returns the null-terminated chip ID
-// string "FFTodile REV 1.0 - Flavian Kaufmann, Thanu Kanagalingam".
+// Mapped at the user ROM base window (see user_pkg address map), this block
+// returns the null-terminated chip ID string
+// "FFTodile REV 1.0 - Flavian Kaufmann, Thanu Kanagalingam".
 // Words are packed little-endian, i.e. word[0] byte 0 appears on rdata[7:0].
+// Writes are rejected with rsp.err.
 
 module user_rom #(
   parameter obi_pkg::obi_cfg_t ObiCfg    = croc_pkg::SbrObiCfg,
