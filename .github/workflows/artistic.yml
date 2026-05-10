@@ -162,10 +162,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artistic/mapify/snapshots
           cp openroad/reports/04_croc.routed.png artistic/mapify/croc_routed.png
           cp artistic/meerkat_work/croc_logo.gds artistic/mapify/croc_logo.gds
           cp artistic/renderics/croc_modules.jpg artistic/mapify/croc_modules.jpg
           cp artistic/renderics/croc_render.jpg artistic/mapify/croc_render.jpg
+          cp openroad/reports/04_croc.routed.png artistic/mapify/snapshots/fftodile_routed.png
+          cp artistic/renderics/croc_modules.jpg artistic/mapify/snapshots/fftodile_modules.jpg
+          cp artistic/renderics/croc_render.jpg artistic/mapify/snapshots/fftodile_render.jpg
 
       - name: Upload map viewer
         uses: actions/upload-pages-artifact@v5

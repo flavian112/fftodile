@@ -123,7 +123,10 @@ Current layout snapshots:
 
 | Module Placement | Routed Design |
 | :---: | :---: |
-| <img src="doc/fftodile_modules.jpg" alt="FFTodile module placement" width="420"> | <img src="doc/fftodile_routed.jpg" alt="FFTodile routed design" width="420"> |
+| <img src="https://flavian112.github.io/fftodile/snapshots/fftodile_modules.jpg" alt="FFTodile module placement" width="420"> | <img src="https://flavian112.github.io/fftodile/snapshots/fftodile_routed.png" alt="FFTodile routed design" width="420"> |
+
+These images are refreshed by the `ArtistIC Render` GitHub Pages workflow. The
+checked-in images under `doc/` are static reference snapshots.
 
 ## Memory Map
 
